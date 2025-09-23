@@ -1,0 +1,93 @@
+# Rust
+target/
+*.rs.bk
+Cargo.lock
+
+# Environment files
+.env
+.env.local
+.env.production
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Build artifacts
+dist/
+build/
+out/
+
+# Dependencies
+node_modules/
+vendor/
+
+# Temporary files
+*.tmp
+*.temp
+*.cache
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Testing
+coverage/
+.coverage
+htmlcov/
+
+# Documentation build
+docs/_build/
+docs/.doctrees/
+
+# Backup files
+*.bak
+*.backup
+*.old
+
+# Compiled binaries
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Rust specific
+target/
+*.rs.bk
+debug/
+release/
+incremental/
+
+# Backend specific
+config.rs
+secrets.toml
+*.env
+.env*
+
+# SQLx database files (contienen datos sensibles)
+.sqlxrc
+sqlx-data.json
+*.sqlx-data.json
+.sqlx/
+
+# Archivos de configuración local
+.local/
+
+# Archivos específicos del backend que no deben versionarse
+config.toml
+
+# Scripts de despliegue (contienen información sensible)
+deploy_apk.sh
+quick_deploy.sh
+scripts/
