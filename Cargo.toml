@@ -1,0 +1,80 @@
+[package]
+name = "delivery_routing"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Web framework
+axum = "0.7"
+tower = { version = "0.4", features = ["load", "limit", "timeout"] }
+tower-http = { version = "0.5", features = ["cors", "compression-full", "trace"] }
+
+# Database
+sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono", "json", "macros", "rust_decimal"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# UUID
+uuid = { version = "1.0", features = ["v4", "serde"] }
+
+# Date and time
+chrono = { version = "0.4", features = ["serde"] }
+
+# Decimal numbers
+rust_decimal = "1.32"
+
+# Validation
+validator = { version = "0.16", features = ["derive"] }
+
+# JWT
+jsonwebtoken = "9.2"
+
+# Password hashing
+bcrypt = "0.15"
+
+# Error handling
+thiserror = "1.0"
+
+# Logging
+log = "0.4"
+env_logger = "0.10"
+
+# Async runtime
+tokio = { version = "1.0", features = ["full"] }
+
+# HTTP types
+http = "1.0"
+
+# Utilities
+num-traits = "0.2"
+anyhow = "1.0.99"
+tracing = "0.1.41"
+dotenvy = "0.15.7"
+tracing-subscriber = "0.3.19"
+reqwest = { version = "0.12.23", default-features = false, features = ["json", "rustls-tls", "cookies"] }
+base64 = "0.22.1"
+lazy_static = "1.4"
+
+# Cache y Redis
+redis = { version = "0.24", features = ["tokio-comp", "connection-manager"] }
+
+# Random para estrategias de camuflaje
+rand = "0.8"
+
+# Async traits
+async-trait = "0.1"
+
+# Métricas y monitoreo
+prometheus = "0.13"
+prometheus-client = "0.22"
+
+# URL encoding para geocoding
+urlencoding = "2.1"
+
+# Futures para operaciones asíncronas
+futures = "0.3"
+
+# Regex para validación de direcciones
+regex = "1.10"
