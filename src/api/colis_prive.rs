@@ -419,6 +419,7 @@ pub async fn get_packages(
                             validation_method: None,
                             validation_confidence: None,
                             validation_warnings: None,
+                            num_ordre_passage_prevu: None, // Se actualizará después de la optimización
                         })
                     } else {
                         None
@@ -434,22 +435,31 @@ pub async fn get_packages(
 
     log::info!("📦 Paquetes extraídos: {} paquetes", packages.len());
     
-    // 🔍 DEBUG: Verificar si hay paquetes en LstLieuArticle
-    if let Some(lst_lieu_article) = tournee_data.get("LstLieuArticle") {
-        log::info!("🔍 LstLieuArticle encontrado: {} elementos", 
-            lst_lieu_article.as_array().map(|arr| arr.len()).unwrap_or(0));
+    // 🎯 NUEVO FLUJO: OPTIMIZAR RUTA ANTES DE GEOCODIFICAR
+    let optimized_packages = if !packages.is_empty() {
+        log::info!("🎯 Iniciando optimización de ruta para {} paquetes", packages.len());
         
-        if let Some(arr) = lst_lieu_article.as_array() {
-            for (i, item) in arr.iter().enumerate() {
-                log::info!("  📦 Paquete {}: {:?}", i, item);
+        // Llamar al endpoint de optimización
+        match optimize_route_for_packages(&matricule_completo, &sso_hopps, &state).await {
+            Ok(optimized_data) => {
+                log::info!("✅ Ruta optimizada exitosamente");
+                
+                // Actualizar paquetes con el orden optimizado
+                apply_optimization_to_packages(packages, &optimized_data)
+            }
+            Err(e) => {
+                log::warn!("⚠️ No se pudo optimizar la ruta: {}. Usando orden original", e);
+                packages // Usar orden original si falla la optimización
             }
         }
     } else {
-        log::warn!("⚠️ LstLieuArticle no encontrado en la respuesta");
-    }
+        packages
+    };
+    
+    log::info!("📦 Paquetes a procesar (después de optimización): {}", optimized_packages.len());
 
     // Si no hay paquetes, verificar si es una tournée completada
-    if packages.is_empty() {
+    if optimized_packages.is_empty() {
         if let Some(infos_tournee) = tournee_data.get("InfosTournee") {
             let code_tournee = infos_tournee.get("codeTourneeDistribution")
                 .and_then(|v| v.as_str())
@@ -497,11 +507,11 @@ pub async fn get_packages(
     }
 
     // 🆕 VALIDACIÓN INTELIGENTE DE DIRECCIONES
-    log::info!("🔍 Iniciando validación inteligente de direcciones para {} paquetes", packages.len());
+    log::info!("🔍 Iniciando validación inteligente de direcciones para {} paquetes", optimized_packages.len());
     
     let mut validated_packages = Vec::new();
     let mut validation_summary = crate::services::AddressValidationSummary {
-        total_packages: packages.len(),
+        total_packages: optimized_packages.len(),
         auto_validated: 0,
         cleaned_auto: 0,
         completed_auto: 0,
@@ -516,7 +526,7 @@ pub async fn get_packages(
         let address_validator = crate::services::AddressValidator::new(geocoding_service);
         
         // Validar cada paquete
-        for mut package in packages {
+        for mut package in optimized_packages {
             match address_validator.validate_address(&package.address, &request.matricule).await {
                 Ok(validated) => {
                     // Actualizar el paquete con la información de validación
@@ -561,8 +571,8 @@ pub async fn get_packages(
         );
     } else {
         log::warn!("⚠️ MAPBOX_TOKEN no configurado, saltando validación de direcciones");
-        validation_summary.requires_manual = packages.len();
-        validated_packages = packages;
+        validation_summary.requires_manual = optimized_packages.len();
+        validated_packages = optimized_packages;
     }
 
     Ok(Json(GetPackagesResponse {
@@ -1187,6 +1197,116 @@ pub async fn reorder_packages(
 
 // TODO: Implementar mejoras espaciales en el futuro
 // Por ahora, el chofer se encarga de reordenar los paquetes manualmente
+
+// ====================================================================
+// FUNCIONES AUXILIARES PARA OPTIMIZACIÓN
+// ====================================================================
+
+/// Llamar al endpoint de optimización para obtener el orden optimizado
+async fn optimize_route_for_packages(
+    matricule: &str,
+    sso_token: &str,
+    state: &AppState,
+) -> Result<ColisPriveOptimizationResponse, String> {
+    use std::time::Duration;
+    
+    // Generar código de tournée dinámicamente
+    let matricule_suffix = matricule.split('_').last().unwrap_or("");
+    let code_tournee = format!("PCP0010699_{}-{}", 
+        matricule_suffix,
+        chrono::Utc::now().format("%Y%m%d")
+    );
+    
+    // Crear request para Colis Privé
+    let optimization_request = ColisPriveOptimizationRequest {
+        code_societe: "PCP0010699".to_string(),
+        matricule: matricule.to_string(),
+        date_heure_debut: chrono::Utc::now().to_rfc3339(),
+        coord_x: None,
+        coord_y: None,
+        coord_retour_x: None,
+        coord_retour_y: None,
+        code_tournee,
+        is_mode_optim_tout_cp_confondus: false,
+        pause_heure_debut: None,
+        pause_duree: None,
+    };
+    
+    // Llamar API de Colis Privé
+    let client = reqwest::Client::new();
+    
+    let response = client
+        .post("https://wstournee-v2.colisprive.com/WS-TourneeColis/api/optimiserTourneeAvecValidation_POST/")
+        .header("SsoHopps", sso_token)
+        .header("Content-Type", "application/json")
+        .header("Accept", "application/json, text/plain, */*")
+        .header("Accept-Language", "fr-FR,fr;q=0.6")
+        .header("Connection", "keep-alive")
+        .header("Origin", "https://gestiontournee.colisprive.com")
+        .header("Referer", "https://gestiontournee.colisprive.com/")
+        .header("Sec-Fetch-Dest", "empty")
+        .header("Sec-Fetch-Mode", "cors")
+        .header("Sec-Fetch-Site", "same-site")
+        .header("Sec-GPC", "1")
+        .header("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36")
+        .json(&optimization_request)
+        .timeout(Duration::from_secs(90))
+        .send()
+        .await
+        .map_err(|e| format!("Error llamando API Colis Privé: {}", e))?;
+    
+    if response.status().is_success() {
+        let optimized_route = response.json::<ColisPriveOptimizationResponse>()
+            .await
+            .map_err(|e| format!("Error parseando respuesta: {}", e))?;
+        
+        Ok(optimized_route)
+    } else {
+        Err(format!("API Colis Privé retornó error: {}", response.status()))
+    }
+}
+
+/// Aplicar el orden de optimización a los paquetes
+fn apply_optimization_to_packages(
+    packages: Vec<crate::services::PackageData>,
+    optimized_data: &ColisPriveOptimizationResponse,
+) -> Vec<crate::services::PackageData> {
+    use std::collections::HashMap;
+    
+    // Crear un mapa de ID de paquete a orden optimizado
+    let mut order_map: HashMap<String, u32> = HashMap::new();
+    
+    for lieu_article in &optimized_data.lst_lieu_article {
+        order_map.insert(
+            lieu_article.id_article.clone(),
+            lieu_article.num_ordre_passage_prevu
+        );
+    }
+    
+    // Actualizar cada paquete con su orden y reordenar
+    let mut updated_packages: Vec<_> = packages
+        .into_iter()
+        .map(|mut package| {
+            // Buscar el orden optimizado para este paquete
+            if let Some(&order) = order_map.get(&package.id) {
+                // Crear un nuevo PackageData con el orden actualizado
+                crate::services::PackageData {
+                    num_ordre_passage_prevu: Some(order as i32),
+                    ..package
+                }
+            } else {
+                package
+            }
+        })
+        .collect();
+    
+    // Ordenar los paquetes según num_ordre_passage_prevu
+    updated_packages.sort_by_key(|p| p.num_ordre_passage_prevu.unwrap_or(999999));
+    
+    log::info!("✅ Aplicado orden optimizado a {} paquetes", updated_packages.len());
+    
+    updated_packages
+}
 
 // ====================================================================
 // Solo API Web - Funciones móviles legacy eliminadas

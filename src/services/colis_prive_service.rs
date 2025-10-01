@@ -56,6 +56,7 @@ pub struct PackageData {
     pub validation_method: Option<String>,
     pub validation_confidence: Option<String>,
     pub validation_warnings: Option<Vec<String>>,
+    pub num_ordre_passage_prevu: Option<i32>, // Orden de paso optimizado
 }
 
 /// Datos de error
