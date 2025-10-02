@@ -1011,18 +1011,6 @@ pub struct OptimizationRequest {
     matricule: String,
 }
 
-#[derive(Serialize, Deserialize)]
-pub struct ReorderPackagesRequest {
-    matricule: String,
-    reordered_packages: Vec<LieuArticle>,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct ReorderPackagesResponse {
-    success: bool,
-    message: String,
-    data: Option<serde_json::Value>,
-}
 
 /// POST /api/colis-prive/optimize - Optimizar ruta de entrega
 pub async fn optimize_tournee(
@@ -1161,42 +1149,6 @@ async fn call_colis_prive_optimization(
     }
 }
 
-/// POST /api/colis-prive/reorder - Reordenar paquetes según preferencia del chofer
-pub async fn reorder_packages(
-    State(state): State<AppState>,
-    Json(request): Json<ReorderPackagesRequest>,
-) -> Result<Json<ReorderPackagesResponse>, StatusCode> {
-    log::info!("🔄 Reordenando paquetes para matricule: {}", request.matricule);
-    
-    // TODO: Implementar lógica para guardar el nuevo orden
-    // Por ahora, solo confirmamos que recibimos la información
-    
-    log::info!("📦 Nuevo orden recibido con {} paquetes", request.reordered_packages.len());
-    
-    // Log del nuevo orden para debugging
-    for (index, package) in request.reordered_packages.iter().enumerate() {
-        log::info!("  {}: {} - {}", 
-            index + 1, 
-            package.nom_destinataire, 
-            package.libelle_voie_geocode_livraison
-        );
-    }
-    
-    let response = ReorderPackagesResponse {
-        success: true,
-        message: "Paquetes reordenados exitosamente".to_string(),
-        data: Some(json!({
-            "matricule": request.matricule,
-            "total_packages": request.reordered_packages.len(),
-            "reordered_at": chrono::Utc::now().to_rfc3339()
-        })),
-    };
-    
-    Ok(Json(response))
-}
-
-// TODO: Implementar mejoras espaciales en el futuro
-// Por ahora, el chofer se encarga de reordenar los paquetes manualmente
 
 // ====================================================================
 // FUNCIONES AUXILIARES PARA OPTIMIZACIÓN

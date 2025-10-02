@@ -15,7 +15,7 @@ use validator::Validate;
 
 use crate::{
     config::EnvironmentConfig,
-    models::user::{User, UserType, UserStatus, CreateUserRequest, UserResponse},
+    models::user::{User, UserType, UserStatus, UserResponse},
     utils::errors::{AppError, AppResult},
     utils::jwt::{generate_token, JwtConfig},
     middleware::auth::AuthenticatedUser,

@@ -2,11 +2,10 @@
 
 pub mod redis_client;
 pub mod auth_cache;
-pub mod tournee_cache;
 pub mod detail_cache;
 
 pub use redis_client::RedisClient;
-// auth_cache, tournee_cache - no se usan actualmente
+// auth_cache - no se usa actualmente
 pub use detail_cache::{DetailCache, CacheStrategy};
 
 use anyhow::Result;
@@ -37,7 +36,6 @@ pub struct CacheConfig {
     pub redis_url: String,
     pub default_ttl: u64,
     pub auth_cache_ttl: u64,
-    pub tournee_cache_ttl: u64,
     pub max_connections: u32,
 }
 
@@ -47,7 +45,6 @@ impl Default for CacheConfig {
             redis_url: "redis://localhost:6379".to_string(),
             default_ttl: 3600,        // 1 hora por defecto
             auth_cache_ttl: 1800,     // 30 minutos para auth
-            tournee_cache_ttl: 900,   // 15 minutos para tournée
             max_connections: 10,
         }
     }

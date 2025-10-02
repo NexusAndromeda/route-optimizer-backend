@@ -17,7 +17,7 @@ use uuid::Uuid;
 
 use crate::{
     config::EnvironmentConfig,
-    user::{User, UserType, UserStatus},
+    models::user::{User, UserType, UserStatus},
     utils::errors::AppError,
 };
 

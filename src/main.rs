@@ -4,7 +4,7 @@ mod state;
 mod database;
 mod services;
 mod utils;
-mod client;
+mod clients;
 mod models;
 mod cache;
 mod analysis;

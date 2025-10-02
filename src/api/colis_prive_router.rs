@@ -11,6 +11,5 @@ pub fn create_colis_prive_router() -> Router<AppState> {
         .route("/auth", post(authenticate_colis_prive))     // Autenticación
         .route("/tournee", post(get_tournee_data))          // Tournée (API Web)
         .route("/optimize", post(optimize_tournee))         // Optimización de ruta
-        .route("/reorder", post(reorder_packages))          // Reordenar paquetes
         .route("/health", get(health_check_colis_prive))    // Health check
 }

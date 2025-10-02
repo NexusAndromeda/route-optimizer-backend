@@ -48,7 +48,7 @@ pub struct PackageDetailRequest {
 pub struct PackageDetailResponse {
     pub success: bool,
     pub message: String,
-    pub data: Option<crate::client::ColisDetailResponse>,
+    pub data: Option<crate::clients::ColisDetailResponse>,
 }
 
 /// Request para limpiar cache
@@ -142,7 +142,7 @@ pub async fn get_package_detail(
     info!("Obteniendo datos detallados para paquete: {}", request.ref_colis);
     
     // Crear cliente
-    let client = match crate::client::ColisPriveWebClient::new(
+    let client = match crate::clients::ColisPriveWebClient::new(
         _state.config.colis_prive_auth_url.clone(),
         _state.config.colis_prive_tournee_url.clone(),
         _state.config.colis_prive_detail_url.clone(),
@@ -189,7 +189,7 @@ pub async fn cleanup_cache(
     match request.cache_type.as_str() {
         "detail" => {
             // Crear cache de detalle
-            let cache = crate::cache::DetailCache::new(crate::client::DetailCacheConfig::default());
+            let cache = crate::cache::DetailCache::new(crate::clients::DetailCacheConfig::default());
             
             match cache.cleanup_expired().await {
                 Ok(cleaned) => {
@@ -212,7 +212,7 @@ pub async fn cleanup_cache(
         }
         "all" => {
             // Limpiar todos los caches
-            let cache = crate::cache::DetailCache::new(crate::client::DetailCacheConfig::default());
+            let cache = crate::cache::DetailCache::new(crate::clients::DetailCacheConfig::default());
             
             match cache.clear().await {
                 Ok(_) => {
@@ -250,7 +250,7 @@ pub async fn get_cache_stats(
 ) -> Result<Json<serde_json::Value>, Json<serde_json::Value>> {
     info!("Obteniendo estadísticas del cache");
     
-    let cache = crate::cache::DetailCache::new(crate::client::DetailCacheConfig::default());
+    let cache = crate::cache::DetailCache::new(crate::clients::DetailCacheConfig::default());
     
     match cache.get_stats().await {
         Ok(stats) => {

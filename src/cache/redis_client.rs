@@ -183,6 +183,15 @@ impl RedisClient {
         info!("✅ Cache limpiado completamente");
         Ok(())
     }
+    
+    /// Verificar si Redis está conectado
+    pub async fn is_connected(&self) -> bool {
+        let mut conn = self.manager.clone();
+        match redis::cmd("PING").query_async::<_, String>(&mut conn).await {
+            Ok(response) => response == "PONG",
+            Err(_) => false,
+        }
+    }
 }
 
 /// Estadísticas del cache

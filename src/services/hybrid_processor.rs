@@ -7,7 +7,7 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use tracing::warn;
 
-use crate::client::{ColisPriveWebClient, ColisDetailResponse};
+use crate::clients::{ColisPriveWebClient, ColisDetailResponse};
 use crate::cache::{DetailCache, CacheStrategy};
 use crate::analysis::delivery_classifier::DeliveryType;
 use crate::models::package::{Package, DeliveryStatus};
@@ -159,7 +159,7 @@ impl HybridProcessor {
             config.colis_prive_tournee_url.clone(),
             config.colis_prive_detail_url.clone(),
         )?;
-        let detail_cache = DetailCache::new(crate::client::DetailCacheConfig::default());
+        let detail_cache = DetailCache::new(crate::clients::DetailCacheConfig::default());
         
         Ok(Self {
             client,

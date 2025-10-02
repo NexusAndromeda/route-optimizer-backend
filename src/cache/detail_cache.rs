@@ -10,7 +10,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::RwLock;
 use tracing::{debug, info, warn};
 
-use crate::client::{ColisDetailResponse, DetailCacheConfig};
+use crate::clients::{ColisDetailResponse, DetailCacheConfig};
 
 /// Cache inteligente para datos detallados de paquetes
 pub struct DetailCache {
@@ -264,7 +264,7 @@ impl CacheStrategy {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::client::ColisDetailData;
+    use crate::clients::ColisDetailData;
 
     #[tokio::test]
     async fn test_cache_basic_operations() {
