@@ -2,7 +2,8 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info, warn};
 
-use super::{CacheOperations, RedisClient};
+use super::cache_config::CacheOperations;
+use super::redis_client::RedisClient;
 
 /// Datos de autenticación cacheados
 #[derive(Debug, Clone, Serialize, Deserialize)]

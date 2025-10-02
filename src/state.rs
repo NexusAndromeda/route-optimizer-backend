@@ -8,8 +8,8 @@ use reqwest::Client;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use crate::config::EnvironmentConfig;
-use crate::cache::RedisClient;
+use crate::config::environment::EnvironmentConfig;
+use crate::cache::redis_client::RedisClient;
 
 /// Estructura para almacenar tokens de autenticación
 #[derive(Clone, Debug)]

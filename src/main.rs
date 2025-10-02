@@ -7,6 +7,7 @@ mod utils;
 mod clients;
 mod models;
 mod cache;
+mod middleware;
 mod analysis;
 
 use anyhow::Result;
@@ -24,7 +25,7 @@ use serde_json::json;
 use config::environment::EnvironmentConfig;
 use state::*;
 
-use cache::{RedisClient, CacheConfig};
+use cache::redis_client::RedisClient;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -40,7 +41,10 @@ async fn main() -> Result<()> {
     info!("================================================");
 
     // Inicializar base de datos
-    let pool = match crate::database::connection::create_pool(None).await {
+    let database_url = std::env::var("DATABASE_URL")
+        .expect("DATABASE_URL debe estar definida en las variables de entorno");
+    
+    let pool = match sqlx::PgPool::connect(&database_url).await {
         Ok(pool) => {
             info!("✅ Base de datos conectada exitosamente");
             pool
@@ -52,8 +56,16 @@ async fn main() -> Result<()> {
     };
 
     // Inicializar Redis y cache
-    let cache_config = CacheConfig::default();
-    let redis_client = match RedisClient::new(cache_config.clone()).await {
+    let redis_url = std::env::var("REDIS_URL")
+        .unwrap_or_else(|_| "redis://localhost:6379".to_string());
+    
+    let redis_config = cache::cache_config::CacheConfig {
+        redis_url,
+        default_ttl: 3600,
+        max_connections: 10,
+    };
+    
+    let redis_client = match RedisClient::new(redis_config).await {
         Ok(client) => {
             info!("✅ Redis conectado exitosamente");
             client

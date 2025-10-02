@@ -1,25 +1,21 @@
-//! Utilidades JWT
+//! Utilidades JWT Simplificadas
 //! 
-//! Este módulo contiene funciones helper para manejo de JWT tokens
-//! y verificación de autenticación.
+//! Este módulo contiene funciones helper para manejo de JWT tokens simplificados.
 
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 use uuid::Uuid;
 
 use crate::{
-    config::EnvironmentConfig,
-    models::user::UserType,
+    config::environment::EnvironmentConfig,
     utils::errors::AppError,
 };
 
-/// Claims del JWT token
+/// Claims del JWT token simplificado
 #[derive(Debug, Serialize, Deserialize)]
 pub struct JwtClaims {
     pub sub: String,        // user_id
     pub company_id: String, // company_id
-    pub user_type: String,  // user_type
     pub exp: usize,         // expiration timestamp
     pub iat: usize,         // issued at timestamp
 }
@@ -48,7 +44,6 @@ impl From<&EnvironmentConfig> for JwtConfig {
 pub fn generate_token(
     user_id: Uuid,
     company_id: Uuid,
-    user_type: UserType,
     config: &JwtConfig,
 ) -> Result<String, AppError> {
     let now = chrono::Utc::now();
@@ -57,7 +52,6 @@ pub fn generate_token(
     let claims = JwtClaims {
         sub: user_id.to_string(),
         company_id: company_id.to_string(),
-        user_type: format!("{:?}", user_type).to_lowercase(),
         exp: expires_at.timestamp() as usize,
         iat: now.timestamp() as usize,
     };
@@ -98,30 +92,6 @@ pub fn get_token_remaining_time(claims: &JwtClaims) -> i64 {
     }
 }
 
-/// Generar token de refresh (opcional)
-pub fn generate_refresh_token(
-    user_id: Uuid,
-    company_id: Uuid,
-    config: &JwtConfig,
-) -> Result<String, AppError> {
-    let now = chrono::Utc::now();
-    // Refresh token expira en 30 días
-    let expires_at = now + chrono::Duration::days(30);
-
-    let claims = JwtClaims {
-        sub: user_id.to_string(),
-        company_id: company_id.to_string(),
-        user_type: "refresh".to_string(),
-        exp: expires_at.timestamp() as usize,
-        iat: now.timestamp() as usize,
-    };
-
-    let encoding_key = EncodingKey::from_secret(config.secret.as_ref());
-    
-    encode(&Header::default(), &claims, &encoding_key)
-        .map_err(|e| AppError::Jwt(format!("Error generando refresh token: {}", e)))
-}
-
 /// Validar formato de token (básico)
 pub fn validate_token_format(token: &str) -> Result<(), AppError> {
     if token.is_empty() {
@@ -152,98 +122,4 @@ pub fn extract_token_from_header(auth_header: &str) -> Result<&str, AppError> {
     }
 
     Ok(token)
-}
-
-/// Crear respuesta de autenticación exitosa
-pub fn create_auth_response(
-    access_token: String,
-    refresh_token: Option<String>,
-    user_id: Uuid,
-    company_id: Uuid,
-    user_type: UserType,
-    config: &JwtConfig,
-) -> serde_json::Value {
-    let mut response = json!({
-        "access_token": access_token,
-        "token_type": "Bearer",
-        "expires_in": config.expiration,
-        "user_id": user_id.to_string(),
-        "company_id": company_id.to_string(),
-        "user_type": format!("{:?}", user_type).to_lowercase(),
-    });
-
-    if let Some(refresh_token) = refresh_token {
-        response["refresh_token"] = serde_json::Value::String(refresh_token);
-    }
-
-    response
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::config::EnvironmentConfig;
-
-    fn create_test_config() -> JwtConfig {
-        JwtConfig {
-            secret: "test-secret-key".to_string(),
-            expiration: 3600, // 1 hora
-            issuer: None,
-            audience: None,
-        }
-    }
-
-    #[test]
-    fn test_generate_and_verify_token() {
-        let config = create_test_config();
-        let user_id = Uuid::new_v4();
-        let company_id = Uuid::new_v4();
-        let user_type = UserType::Admin;
-
-        let token = generate_token(user_id, company_id, user_type, &config).unwrap();
-        let claims = verify_token(&token, &config).unwrap();
-
-        assert_eq!(claims.sub, user_id.to_string());
-        assert_eq!(claims.company_id, company_id.to_string());
-        assert_eq!(claims.user_type, "admin");
-    }
-
-    #[test]
-    fn test_token_expiration() {
-        let config = JwtConfig {
-            secret: "test-secret".to_string(),
-            expiration: 1, // 1 segundo
-            issuer: None,
-            audience: None,
-        };
-
-        let user_id = Uuid::new_v4();
-        let company_id = Uuid::new_v4();
-        let user_type = UserType::Driver;
-
-        let token = generate_token(user_id, company_id, user_type, &config).unwrap();
-        
-        // Esperar a que expire
-        std::thread::sleep(std::time::Duration::from_secs(2));
-        
-        let result = verify_token(&token, &config);
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_validate_token_format() {
-        assert!(validate_token_format("header.payload.signature").is_ok());
-        assert!(validate_token_format("invalid-token").is_err());
-        assert!(validate_token_format("").is_err());
-    }
-
-    #[test]
-    fn test_extract_token_from_header() {
-        assert_eq!(
-            extract_token_from_header("Bearer valid-token").unwrap(),
-            "valid-token"
-        );
-        assert!(extract_token_from_header("Invalid header").is_err());
-        assert!(extract_token_from_header("Bearer ").is_err());
-    }
 }

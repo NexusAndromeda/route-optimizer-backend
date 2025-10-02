@@ -9,19 +9,16 @@ use validator::Validate;
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
-/// Company principal - mapea exactamente a la tabla companies
+/// Company principal - mapea exactamente a la tabla companies del schema simplificado
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct Company {
     pub id: Uuid,
     pub name: String,
     pub address: String,
+    pub siret: Option<String>,
     pub subscription_plan: String,
     pub subscription_status: String,
-    pub max_drivers: i32,
-    pub max_vehicles: i32,
     pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
-    pub deleted_at: Option<DateTime<Utc>>,
 }
 
 /// Request para crear una nueva company
@@ -68,18 +65,16 @@ pub struct UpdateCompanyRequest {
     pub max_vehicles: Option<i32>,
 }
 
-/// Response de company para la API
+/// Response de company para la API - simplificado
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CompanyResponse {
     pub id: Uuid,
     pub name: String,
     pub address: String,
+    pub siret: Option<String>,
     pub subscription_plan: String,
     pub subscription_status: String,
-    pub max_drivers: i32,
-    pub max_vehicles: i32,
     pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
 }
 
 /// Response de company para listados paginados
@@ -109,12 +104,10 @@ impl From<Company> for CompanyResponse {
             id: company.id,
             name: company.name,
             address: company.address,
+            siret: company.siret,
             subscription_plan: company.subscription_plan,
             subscription_status: company.subscription_status,
-            max_drivers: company.max_drivers,
-            max_vehicles: company.max_vehicles,
             created_at: company.created_at,
-            updated_at: company.updated_at,
         }
     }
 }

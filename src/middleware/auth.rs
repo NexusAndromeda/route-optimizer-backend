@@ -1,7 +1,6 @@
-//! Middleware de autenticación JWT
+//! Middleware de autenticación JWT Simplificado
 //! 
-//! Este módulo maneja la autenticación JWT, extracción de tokens
-//! y verificación de usuarios autenticados.
+//! Este módulo maneja la autenticación JWT simplificada para el schema simplificado.
 
 use axum::{
     extract::{Request, State},
@@ -16,17 +15,15 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::{
-    config::EnvironmentConfig,
-    models::user::{User, UserType, UserStatus},
+    config::environment::EnvironmentConfig,
     utils::errors::AppError,
 };
 
-/// Claims del JWT
+/// Claims del JWT simplificado
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Claims {
     pub sub: String, // user_id
     pub company_id: String,
-    pub user_type: String,
     pub exp: usize,
     pub iat: usize,
 }
@@ -36,7 +33,6 @@ pub struct Claims {
 pub struct AuthenticatedUser {
     pub user_id: Uuid,
     pub company_id: Uuid,
-    pub user_type: UserType,
 }
 
 /// Middleware de autenticación JWT
@@ -70,12 +66,10 @@ pub async fn auth_middleware(
     let user_row = sqlx::query!(
         r#"
         SELECT 
-            id, company_id, user_type as "user_type: crate::models::user::UserType", user_status as "user_status: crate::models::user::UserStatus", username, 
-            password_hash, created_at, updated_at, deleted_at
+            id, company_id, password_hash, full_name, email, created_at
         FROM users 
         WHERE id = $1 
-        AND company_id = $2 
-        AND deleted_at IS NULL
+        AND company_id = $2
         "#,
         Uuid::parse_str(&claims.sub).map_err(|_| {
             AppError::Unauthorized("ID de usuario inválido".to_string())
@@ -89,22 +83,10 @@ pub async fn auth_middleware(
     .map_err(|e| AppError::Database(e))?
     .ok_or_else(|| AppError::Unauthorized("Usuario no encontrado".to_string()))?;
 
-    // Usar los enums directamente
-    let user_type = user_row.user_type;
-    let user_status = user_row.user_status;
-
-
-
-    // Verificar que el usuario esté activo
-    if user_status != UserStatus::Active {
-        return Err(AppError::Unauthorized("Usuario inactivo o suspendido".to_string()));
-    }
-
     // Crear usuario autenticado
     let authenticated_user = AuthenticatedUser {
         user_id: user_row.id,
         company_id: user_row.company_id,
-        user_type,
     };
 
     // Inyectar usuario autenticado en las extensions
@@ -139,12 +121,10 @@ pub async fn optional_auth_middleware(
             if let Ok(user_row) = sqlx::query!(
                 r#"
                 SELECT 
-                    id, company_id, user_type as "user_type: crate::models::user::UserType", user_status as "user_status: crate::models::user::UserStatus", username, 
-                    password_hash, created_at, updated_at, deleted_at
+                    id, company_id, password_hash, full_name, email, created_at
                 FROM users 
                 WHERE id = $1 
-                AND company_id = $2 
-                AND deleted_at IS NULL
+                AND company_id = $2
                 "#,
                 Uuid::parse_str(&claims.sub).unwrap_or_default(),
                 Uuid::parse_str(&claims.company_id).unwrap_or_default()
@@ -153,37 +133,14 @@ pub async fn optional_auth_middleware(
             .await
             {
                 if let Some(user_row) = user_row {
-                    // Usar los enums directamente
-                    let user_status = user_row.user_status;
-
-                    if user_status == UserStatus::Active {
-                        let user_type = user_row.user_type;
-
-                        let authenticated_user = AuthenticatedUser {
-                            user_id: user_row.id,
-                            company_id: user_row.company_id,
-                            user_type,
-                        };
-                        request.extensions_mut().insert(authenticated_user);
-                    }
+                    let authenticated_user = AuthenticatedUser {
+                        user_id: user_row.id,
+                        company_id: user_row.company_id,
+                    };
+                    request.extensions_mut().insert(authenticated_user);
                 }
             }
         }
-    }
-
-    Ok(next.run(request).await)
-}
-
-/// Middleware para verificar permisos de admin
-pub async fn admin_only_middleware(
-    Extension(user): Extension<AuthenticatedUser>,
-    request: Request,
-    next: Next,
-) -> Result<Response, AppError> {
-    if user.user_type != UserType::Admin {
-        return Err(AppError::Unauthorized(
-            "Se requieren permisos de administrador".to_string(),
-        ));
     }
 
     Ok(next.run(request).await)
@@ -201,11 +158,10 @@ pub async fn company_access_middleware(
     Ok(next.run(request).await)
 }
 
-/// Función para generar JWT token
+/// Función para generar JWT token simplificado
 pub fn generate_jwt_token(
     user_id: Uuid,
     company_id: Uuid,
-    user_type: UserType,
     config: &EnvironmentConfig,
 ) -> Result<String, AppError> {
     let now = chrono::Utc::now();
@@ -214,7 +170,6 @@ pub fn generate_jwt_token(
     let claims = Claims {
         sub: user_id.to_string(),
         company_id: company_id.to_string(),
-        user_type: format!("{:?}", user_type).to_lowercase(),
         exp: expires_at.timestamp() as usize,
         iat: now.timestamp() as usize,
     };

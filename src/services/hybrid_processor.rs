@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use tracing::warn;
 
 use crate::clients::{ColisPriveWebClient, ColisDetailResponse};
-use crate::cache::{DetailCache, CacheStrategy};
+use crate::cache::detail_cache::{DetailCache, CacheStrategy};
 use crate::analysis::delivery_classifier::DeliveryType;
 use crate::models::package::{Package, DeliveryStatus};
 use crate::config::environment::EnvironmentConfig;
@@ -302,10 +302,8 @@ impl HybridProcessor {
         // Por ahora, simplificado
         let delivery_type = DeliveryType::Domicile; // Placeholder
         
-        let priority = match package.delivery_coordinates.as_ref() {
-            Some(_) => DetailPriority::Low,
-            None => DetailPriority::High,
-        };
+        // Simplificado: siempre prioridad alta para el schema simplificado
+        let priority = DetailPriority::High;
 
         Ok((delivery_type, priority))
     }
@@ -318,8 +316,8 @@ impl HybridProcessor {
     ) -> Result<EnrichedPackage> {
         let enriched_data = EnrichedData {
             complete_address: package.delivery_address.clone(),
-            coordinates: package.delivery_coordinates.as_ref().map(|coord| (coord.x, coord.y)),
-            complete_barcode: package.external_tracking_number.clone(),
+            coordinates: None, // No hay coordenadas en el schema simplificado
+            complete_barcode: None, // No hay external_tracking_number en el schema simplificado
             physical_data: None,
             contact_info: None,
             delivery_instructions: None,
@@ -507,8 +505,8 @@ impl HybridProcessor {
     fn create_basic_enriched_data(&self, package: &Package) -> Result<EnrichedData> {
         Ok(EnrichedData {
             complete_address: package.delivery_address.clone(),
-            coordinates: package.delivery_coordinates.as_ref().map(|coord| (coord.x, coord.y)),
-            complete_barcode: package.external_tracking_number.clone(),
+            coordinates: None, // No hay coordenadas en el schema simplificado
+            complete_barcode: None, // No hay external_tracking_number en el schema simplificado
             physical_data: None,
             contact_info: None,
             delivery_instructions: None,

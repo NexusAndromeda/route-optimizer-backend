@@ -1,10 +1,5 @@
-//! Configuración del proyecto
+//! Configuración simplificada
 //! 
-//! Este módulo contiene la configuración de base de datos, variables de entorno
-//! y otras configuraciones del sistema.
+//! Este módulo contiene solo la configuración de entorno.
 
-pub mod database;
 pub mod environment;
-
-pub use environment::*;
-

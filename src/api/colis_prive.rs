@@ -13,8 +13,10 @@ use log;
 use crate::{
     state::AppState,
     config::environment::EnvironmentConfig,
-    services::colis_prive_service::{ColisPriveAuthRequest, GetTourneeRequest, GetPackagesRequest, ColisPriveAuthResponse},
+    services::colis_prive_service::{ColisPriveAuthRequest, GetTourneeRequest, GetPackagesRequest, ColisPriveAuthResponse, GetPackagesResponse, PackageData, AddressValidationSummary},
     services::colis_prive_companies_service::ColisPriveCompaniesService,
+    services::geocoding_service::GeocodingService,
+    services::address_validation::{AddressValidator, ValidationMethod},
     models::colis_prive_company::ColisPriveCompanyListResponse,
     utils::errors::AppError,
 };
@@ -247,9 +249,9 @@ pub async fn test_packages_endpoint() -> Result<Json<serde_json::Value>, StatusC
 pub async fn get_packages(
     State(state): State<AppState>,
     Json(request): Json<GetPackagesRequest>,
-) -> Result<Json<crate::services::GetPackagesResponse>, StatusCode> {
+) -> Result<Json<GetPackagesResponse>, StatusCode> {
     use tracing::info;
-    use crate::services::{GetPackagesResponse, PackageData};
+    use crate::services::colis_prive_service::{GetPackagesResponse, PackageData};
 
     log::info!("🔥 FUNCIÓN GET_PACKAGES INICIADA");
     info!("🚀 ENDPOINT GET_PACKAGES LLAMADO - matricule: {}", request.matricule);
@@ -475,7 +477,7 @@ pub async fn get_packages(
                 message: format!("🏁 Tournée completada - {} ha terminado su jornada. No hay paquetes pendientes.", nom_distributeur),
                 packages: Some(vec![]), // Lista vacía en lugar de None
                 error: None,
-                address_validation: Some(crate::services::AddressValidationSummary {
+                address_validation: Some(AddressValidationSummary {
                     total_packages: 0,
                     auto_validated: 0,
                     cleaned_auto: 0,
@@ -493,7 +495,7 @@ pub async fn get_packages(
                 message: "No se encontraron paquetes para esta fecha".to_string(),
                 packages: Some(vec![]),
                 error: None,
-                address_validation: Some(crate::services::AddressValidationSummary {
+                address_validation: Some(AddressValidationSummary {
                     total_packages: 0,
                     auto_validated: 0,
                     cleaned_auto: 0,
@@ -510,7 +512,7 @@ pub async fn get_packages(
     log::info!("🔍 Iniciando validación inteligente de direcciones para {} paquetes", optimized_packages.len());
     
     let mut validated_packages = Vec::new();
-    let mut validation_summary = crate::services::AddressValidationSummary {
+    let mut validation_summary = AddressValidationSummary {
         total_packages: optimized_packages.len(),
         auto_validated: 0,
         cleaned_auto: 0,
@@ -522,8 +524,8 @@ pub async fn get_packages(
 
     // Crear el validador de direcciones
     if let Some(mapbox_token) = &state.config.mapbox_token {
-        let geocoding_service = crate::services::GeocodingService::new(mapbox_token.clone());
-        let address_validator = crate::services::AddressValidator::new(geocoding_service);
+        let geocoding_service = GeocodingService::new(mapbox_token.clone());
+        let address_validator = AddressValidator::new(geocoding_service);
         
         // Validar cada paquete
         for mut package in optimized_packages {
@@ -539,11 +541,11 @@ pub async fn get_packages(
                     
                     // Actualizar estadísticas
                     match validated.validation_method {
-                        crate::services::ValidationMethod::Original => validation_summary.auto_validated += 1,
-                        crate::services::ValidationMethod::Cleaned => validation_summary.cleaned_auto += 1,
-                        crate::services::ValidationMethod::CompletedWithSector => validation_summary.completed_auto += 1,
-                        crate::services::ValidationMethod::PartialSearch => validation_summary.partial_found += 1,
-                        crate::services::ValidationMethod::ManualRequired => validation_summary.requires_manual += 1,
+                        ValidationMethod::Original => validation_summary.auto_validated += 1,
+                        ValidationMethod::Cleaned => validation_summary.cleaned_auto += 1,
+                        ValidationMethod::CompletedWithSector => validation_summary.completed_auto += 1,
+                        ValidationMethod::PartialSearch => validation_summary.partial_found += 1,
+                        ValidationMethod::ManualRequired => validation_summary.requires_manual += 1,
                     }
                     
                     // Agregar warnings al resumen
@@ -1220,9 +1222,9 @@ async fn optimize_route_for_packages(
 
 /// Aplicar el orden de optimización a los paquetes
 fn apply_optimization_to_packages(
-    packages: Vec<crate::services::PackageData>,
+    packages: Vec<PackageData>,
     optimized_data: &ColisPriveOptimizationResponse,
-) -> Vec<crate::services::PackageData> {
+) -> Vec<PackageData> {
     use std::collections::HashMap;
     
     // Crear un mapa de ID de paquete a orden optimizado
@@ -1242,7 +1244,7 @@ fn apply_optimization_to_packages(
             // Buscar el orden optimizado para este paquete
             if let Some(&order) = order_map.get(&package.id) {
                 // Crear un nuevo PackageData con el orden actualizado
-                crate::services::PackageData {
+                PackageData {
                     num_ordre_passage_prevu: Some(order as i32),
                     ..package
                 }

@@ -1,4 +1,4 @@
-use axum::{extract::Json, response::Json as AxumJson, response::Response, http::StatusCode, body::Body, extract::State};
+use axum::{extract::Json, response::Json as AxumJson, response::Response, http::StatusCode, body::Body, extract::State, routing::post, Router};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::path::Path;
@@ -47,13 +47,8 @@ pub async fn check_for_updates(
             version_code,
             download_url,
             release_notes,
-            release_notes_fr,
-            release_notes_en,
             force_update,
-            min_supported_version,
-            apk_size_bytes,
-            is_active,
-            is_beta
+            is_active
         FROM app_versions 
         WHERE is_active = TRUE 
         ORDER BY version_code DESC 
@@ -69,9 +64,6 @@ pub async fn check_for_updates(
             let download_url: String = row.get("download_url");
             let release_notes: Option<String> = row.get("release_notes");
             let force_update: bool = row.get("force_update");
-            let min_supported_version: Option<String> = row.get("min_supported_version");
-            let apk_size_bytes: Option<i64> = row.get("apk_size_bytes");
-            let is_beta: bool = row.get("is_beta");
             
             let latest_version = format!("{}.{}", latest_version_name, latest_version_code);
             
@@ -89,10 +81,7 @@ pub async fn check_for_updates(
                         "update_available": true,
                         "download_url": download_url,
                         "release_notes": release_notes.unwrap_or_else(|| "Nueva versión disponible".to_string()),
-                        "force_update": force_update,
-                        "min_supported_version": min_supported_version.unwrap_or_else(|| "1.0.0".to_string()),
-                        "apk_size_bytes": apk_size_bytes,
-                        "is_beta": is_beta
+                        "force_update": force_update
                     },
                     "error": null
                 });
@@ -109,8 +98,7 @@ pub async fn check_for_updates(
                         "update_available": false,
                         "download_url": null,
                         "release_notes": null,
-                        "force_update": false,
-                        "min_supported_version": min_supported_version.unwrap_or_else(|| "1.0.0".to_string())
+                        "force_update": false
                     },
                     "error": null
                 });
@@ -167,9 +155,7 @@ pub async fn download_apk(State(state): State<AppState>) -> Result<Response<Body
         SELECT 
             apk_path,
             version_name,
-            version_code,
-            apk_size_bytes,
-            apk_checksum
+            version_code
         FROM app_versions 
         WHERE is_active = TRUE 
         ORDER BY version_code DESC 
@@ -183,8 +169,6 @@ pub async fn download_apk(State(state): State<AppState>) -> Result<Response<Body
             let apk_path_str: String = row.get("apk_path");
             let version_name: String = row.get("version_name");
             let version_code: i32 = row.get("version_code");
-            let apk_size_bytes: Option<i64> = row.get("apk_size_bytes");
-            let apk_checksum: Option<String> = row.get("apk_checksum");
             
             let apk_path = Path::new(&apk_path_str);
             
@@ -197,32 +181,14 @@ pub async fn download_apk(State(state): State<AppState>) -> Result<Response<Body
                 Ok(apk_data) => {
                     log::info!("✅ APK leído exitosamente: {} v{} ({} bytes)", version_name, version_code, apk_data.len());
                     
-                    // Actualizar contador de descargas
-                    if let Err(e) = sqlx::query(
-                        "UPDATE app_versions SET download_count = download_count + 1, last_downloaded_at = NOW() WHERE version_code = $1"
-                    )
-                    .bind(version_code)
-                    .execute(&state.pool)
-                    .await
-                    {
-                        log::warn!("⚠️ Error actualizando contador de descargas: {}", e);
-                    }
+                    // Nota: No hay contador de descargas en el schema simplificado
                     
                     let filename = format!("delivery-routing-{}.apk", version_name);
-                    let mut response_builder = Response::builder()
+                    let response_builder = Response::builder()
                         .status(StatusCode::OK)
                         .header("Content-Type", "application/vnd.android.package-archive")
                         .header("Content-Disposition", format!("attachment; filename=\"{}\"", filename))
                         .header("Content-Length", apk_data.len().to_string());
-                    
-                    // Agregar headers adicionales si están disponibles
-                    if let Some(size) = apk_size_bytes {
-                        response_builder = response_builder.header("X-APK-Size", size.to_string());
-                    }
-                    
-                    if let Some(checksum) = apk_checksum {
-                        response_builder = response_builder.header("X-APK-Checksum", checksum);
-                    }
                     
                     let response = response_builder
                         .body(Body::from(apk_data))
@@ -241,4 +207,11 @@ pub async fn download_apk(State(state): State<AppState>) -> Result<Response<Body
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
+}
+
+/// Crear el router de actualizaciones
+pub fn create_update_router() -> Router<AppState> {
+    Router::new()
+        .route("/check", post(check_for_updates))
+        .route("/download", post(download_apk))
 }

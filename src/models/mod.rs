@@ -1,17 +1,11 @@
-//! Modelos del sistema
+//! Modelos de datos
 //! 
-//! Este módulo contiene todos los modelos de datos que mapean exactamente
-//! al schema PostgreSQL con las convenciones estándar.
+//! Este módulo contiene los modelos de datos para la aplicación.
 
-pub mod auth;
-pub mod company;
-pub mod colis_prive_company;
 pub mod user;
+pub mod company;
 pub mod vehicle;
 pub mod tournee;
 pub mod package;
-pub mod analytics;
+pub mod colis_prive_company;
 pub mod colis_prive_web_models;
-// colis_prive_v3_models eliminado - API móvil legacy
-
-

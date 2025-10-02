@@ -14,19 +14,17 @@ use uuid::Uuid;
 use validator::Validate;
 
 use crate::{
-    config::EnvironmentConfig,
-    models::user::{User, UserType, UserStatus, UserResponse},
+    models::user::{User, UserResponse},
     utils::errors::{AppError, AppResult},
     utils::jwt::{generate_token, JwtConfig},
-    middleware::auth::AuthenticatedUser,
     state::AppState,
 };
 
 /// Request de login
 #[derive(Debug, Deserialize, Validate)]
 pub struct LoginRequest {
-    #[validate(length(min = 3, max = 50))]
-    pub username: String,
+    #[validate(email)]
+    pub email: String,
     
     #[validate(length(min = 6, max = 100))]
     pub password: String,
@@ -65,7 +63,7 @@ pub struct AuthInfo {
 /// Credenciales utilizadas
 #[derive(Debug, Serialize)]
 pub struct CredentialsUsed {
-    pub username: String,
+    pub email: String,
     pub timestamp: String,
 }
 
@@ -87,16 +85,14 @@ pub struct RefreshTokenResponse {
 /// Request de registro
 #[derive(Debug, Deserialize, Validate)]
 pub struct RegisterRequest {
-    #[validate(length(min = 3, max = 50))]
-    pub username: String,
+    #[validate(length(min = 2, max = 100))]
+    pub full_name: String,
     
     #[validate(email)]
     pub email: String,
     
     #[validate(length(min = 6, max = 100))]
     pub password: String,
-    
-    pub user_type: UserType,
 }
 
 /// Handler de login
@@ -110,17 +106,15 @@ pub async fn login(
     login_data.validate()
         .map_err(AppError::Validation)?;
 
-    // Buscar usuario por username
+    // Buscar usuario por email
     let row = sqlx::query!(
         r#"
         SELECT 
-            id, company_id, user_type as "user_type: String", user_status as "user_status: String", username, 
-            password_hash, created_at, updated_at, deleted_at
+            id, company_id, password_hash, full_name, email, created_at
         FROM users 
-        WHERE username = $1 
-        AND deleted_at IS NULL
+        WHERE email = $1
         "#,
-        login_data.username
+        login_data.email
     )
     .fetch_optional(pool)
     .await
@@ -130,28 +124,13 @@ pub async fn login(
     let user = User {
         id: row.id,
         company_id: row.company_id,
-        user_type: match row.user_type.as_str() {
-            "admin" => UserType::Admin,
-            "driver" => UserType::Driver,
-            _ => return Err(AppError::Database(sqlx::Error::Decode("Invalid user_type".into()))),
-        },
-        user_status: match row.user_status.as_str() {
-            "active" => UserStatus::Active,
-            "inactive" => UserStatus::Inactive,
-            "suspended" => UserStatus::Suspended,
-            _ => return Err(AppError::Database(sqlx::Error::Decode("Invalid user_status".into()))),
-        },
-        username: row.username,
         password_hash: row.password_hash,
+        full_name: row.full_name,
+        email: row.email,
         created_at: row.created_at.expect("created_at should not be null"),
-        updated_at: row.updated_at.expect("updated_at should not be null"),
-        deleted_at: row.deleted_at,
     };
 
-    // Verificar que el usuario esté activo
-    if user.user_status != UserStatus::Active {
-        return Err(AppError::Unauthorized("Usuario inactivo o suspendido".to_string()));
-    }
+    // Usuario encontrado y activo (todos los usuarios en el schema simplificado están activos)
 
     // Verificar password
     let password_valid = verify(&login_data.password, &user.password_hash)
@@ -163,7 +142,7 @@ pub async fn login(
 
     // Generar JWT token
     let jwt_config = JwtConfig::from(config);
-    let access_token = generate_token(user.id, user.company_id, user.user_type.clone(), &jwt_config)?;
+    let access_token = generate_token(user.id, user.company_id, &jwt_config)?;
 
     // Convertir a response
     let user_response = UserResponse::from(user);
@@ -177,11 +156,11 @@ pub async fn login(
         message: "Login exitoso".to_string(),  // MESSAGE EN RAÍZ
         authentication: Some(AuthInfo {
             token: access_token.clone(),   // TOKEN TAMBIÉN EN AUTH
-            matricule: user_response.username.clone(),
+            matricule: user_response.email.clone().unwrap_or_default(),
             message: "Autenticación exitosa".to_string(),
         }),
         credentials_used: Some(CredentialsUsed {
-            username: login_data.username.clone(),
+            email: login_data.email.clone(),
             timestamp: chrono::Utc::now().to_rfc3339(),
         }),
         timestamp: chrono::Utc::now().to_rfc3339(),
@@ -201,22 +180,9 @@ pub async fn register(
     register_data.validate()
         .map_err(AppError::Validation)?;
 
-    // Verificar que el username no exista
-    let existing_user = sqlx::query!(
-        "SELECT id FROM users WHERE username = $1 AND deleted_at IS NULL",
-        register_data.username
-    )
-    .fetch_optional(pool)
-    .await
-    .map_err(|e| AppError::Database(e))?;
-
-    if existing_user.is_some() {
-        return Err(AppError::Conflict("Username ya existe".to_string()));
-    }
-
     // Verificar que el email no exista
     let existing_email = sqlx::query!(
-        "SELECT id FROM users WHERE email = $1 AND deleted_at IS NULL",
+        "SELECT id FROM users WHERE email = $1",
         register_data.email
     )
     .fetch_optional(pool)
@@ -238,21 +204,15 @@ pub async fn register(
     let row = sqlx::query!(
         r#"
         INSERT INTO users (
-            company_id, user_type, user_status, username, 
-            password_hash, created_at, updated_at
-        ) VALUES ($1, ($2::text)::user_type, ($3::text)::user_status, $4, $5, NOW(), NOW())
+            company_id, password_hash, full_name, email, created_at
+        ) VALUES ($1, $2, $3, $4, NOW())
         RETURNING 
-            id, company_id, user_type as "user_type: crate::models::user::UserType", user_status as "user_status: crate::models::user::UserStatus", username, 
-            password_hash, created_at, updated_at, deleted_at
+            id, company_id, password_hash, full_name, email, created_at
         "#,
         company_id,
-        match register_data.user_type {
-            UserType::Admin => "admin",
-            UserType::Driver => "driver",
-        },
-        "active",
-        register_data.username,
-        password_hash
+        password_hash,
+        register_data.full_name,
+        register_data.email
     )
     .fetch_one(pool)
     .await
@@ -261,18 +221,15 @@ pub async fn register(
     let new_user = User {
         id: row.id,
         company_id: row.company_id,
-        user_type: row.user_type,
-        user_status: row.user_status,
-        username: row.username,
         password_hash: row.password_hash,
+        full_name: row.full_name,
+        email: row.email,
         created_at: row.created_at.expect("created_at should not be null"),
-        updated_at: row.updated_at.expect("updated_at should not be null"),
-        deleted_at: row.deleted_at,
     };
 
     // Generar JWT token
     let jwt_config = JwtConfig::from(config);
-    let access_token = generate_token(new_user.id, new_user.company_id, new_user.user_type.clone(), &jwt_config)?;
+    let access_token = generate_token(new_user.id, new_user.company_id, &jwt_config)?;
 
     // Convertir a response
     let user_response = UserResponse::from(new_user);
@@ -286,11 +243,11 @@ pub async fn register(
         message: "Registro exitoso".to_string(),  // MESSAGE EN RAÍZ
         authentication: Some(AuthInfo {
             token: access_token.clone(),   // TOKEN TAMBIÉN EN AUTH
-            matricule: user_response.username.clone(),
+            matricule: user_response.email.clone().unwrap_or_default(),
             message: "Usuario registrado exitosamente".to_string(),
         }),
         credentials_used: Some(CredentialsUsed {
-            username: register_data.username.clone(),
+            email: register_data.email.clone(),
             timestamp: chrono::Utc::now().to_rfc3339(),
         }),
         timestamp: chrono::Utc::now().to_rfc3339(),
@@ -301,7 +258,7 @@ pub async fn register(
 
 /// Handler para obtener información del usuario autenticado
 pub async fn me(
-    Extension(user): Extension<AuthenticatedUser>,
+    Extension(user): Extension<crate::middleware::auth::AuthenticatedUser>,
     State(app_state): State<AppState>,
 ) -> AppResult<Json<UserResponse>> {
     let pool = &app_state.pool;
@@ -309,11 +266,9 @@ pub async fn me(
     let row = sqlx::query!(
         r#"
         SELECT 
-            id, company_id, user_type as "user_type: crate::models::user::UserType", user_status as "user_status: crate::models::user::UserStatus", username, 
-            password_hash, created_at, updated_at, deleted_at
+            id, company_id, password_hash, full_name, email, created_at
         FROM users 
-        WHERE id = $1 
-        AND deleted_at IS NULL
+        WHERE id = $1
         "#,
         user.user_id
     )
@@ -324,13 +279,10 @@ pub async fn me(
     let user_data = User {
         id: row.id,
         company_id: row.company_id,
-        user_type: row.user_type,
-        user_status: row.user_status,
-        username: row.username,
         password_hash: row.password_hash,
+        full_name: row.full_name,
+        email: row.email,
         created_at: row.created_at.expect("created_at should not be null"),
-        updated_at: row.updated_at.expect("updated_at should not be null"),
-        deleted_at: row.deleted_at,
     };
 
     let user_response = UserResponse::from(user_data);

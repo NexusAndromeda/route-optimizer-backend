@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
 
 use crate::services::hybrid_processor::{HybridProcessor, HybridProcessingResult};
-use crate::cache::CacheStrategy;
+use crate::cache::detail_cache::{CacheStrategy, DetailCache};
 use crate::state::AppState;
 
 /// Request para procesamiento híbrido
@@ -189,7 +189,7 @@ pub async fn cleanup_cache(
     match request.cache_type.as_str() {
         "detail" => {
             // Crear cache de detalle
-            let cache = crate::cache::DetailCache::new(crate::clients::DetailCacheConfig::default());
+            let cache = DetailCache::new(crate::clients::DetailCacheConfig::default());
             
             match cache.cleanup_expired().await {
                 Ok(cleaned) => {
@@ -212,7 +212,7 @@ pub async fn cleanup_cache(
         }
         "all" => {
             // Limpiar todos los caches
-            let cache = crate::cache::DetailCache::new(crate::clients::DetailCacheConfig::default());
+            let cache = DetailCache::new(crate::clients::DetailCacheConfig::default());
             
             match cache.clear().await {
                 Ok(_) => {
@@ -250,7 +250,7 @@ pub async fn get_cache_stats(
 ) -> Result<Json<serde_json::Value>, Json<serde_json::Value>> {
     info!("Obteniendo estadísticas del cache");
     
-    let cache = crate::cache::DetailCache::new(crate::clients::DetailCacheConfig::default());
+    let cache = DetailCache::new(crate::clients::DetailCacheConfig::default());
     
     match cache.get_stats().await {
         Ok(stats) => {
@@ -294,38 +294,9 @@ fn create_mock_packages(ref_colis_list: &[String]) -> Vec<crate::models::package
             company_id: uuid::Uuid::new_v4(),
             tournee_id: uuid::Uuid::new_v4(),
             tracking_number: ref_colis.clone(),
-            external_tracking_number: Some(format!("S{}", ref_colis)),
-            package_origin: Some("colis_prive".to_string()),
-            external_package_id: Some(ref_colis.clone()),
-            integration_id: None,
-            package_type: Some("colis".to_string()),
-            package_weight: Some(rust_decimal::Decimal::new(100, 2)), // 1.00 kg
-            package_dimensions: Some("10x10x10".to_string()),
-            delivery_status: crate::models::package::DeliveryStatus::Pending,
-            delivery_date: None,
-            delivery_time: None,
-            delivery_attempts: 0,
-            recipient_name: Some(format!("Destinataire {}", i + 1)),
-            recipient_phone: Some("0123456789".to_string()),
             delivery_address: format!("{} RUE TEST, 75018 PARIS, FRANCE", i + 1),
-            delivery_instructions: Some("Entregar en horario comercial".to_string()),
-            failure_reason: None,
-            failure_notes: None,
-            reschedule_date: None,
-            delivery_photo: None,
-            signature_required: true,
-            signature_image: None,
-            signature_photo: None,
-            delivery_coordinates: Some(crate::models::package::Point {
-                x: 2.3522 + (i as f64 * 0.001),
-                y: 48.8566 + (i as f64 * 0.001),
-            }),
-            delivery_duration_minutes: None,
-            driver_notes: None,
-            package_condition: None,
-            created_at: Some(chrono::Utc::now()),
-            updated_at: Some(chrono::Utc::now()),
-            deleted_at: None,
+            delivery_status: crate::models::package::DeliveryStatus::Pending,
+            created_at: chrono::Utc::now(),
         })
         .collect()
 }

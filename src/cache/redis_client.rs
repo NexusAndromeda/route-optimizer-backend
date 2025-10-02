@@ -3,7 +3,7 @@ use redis::{aio::ConnectionManager, AsyncCommands, RedisResult};
 use serde::{de::DeserializeOwned, Serialize};
 use tracing::{debug, error, info, warn};
 
-use super::{CacheConfig, CacheOperations};
+use super::cache_config::{CacheConfig, CacheOperations};
 
 /// Cliente Redis con connection pooling y operaciones async
 #[derive(Clone)]
@@ -50,9 +50,8 @@ impl RedisClient {
     }
 }
 
-#[async_trait::async_trait]
-impl CacheOperations for RedisClient {
-    async fn get<T: DeserializeOwned>(&self, key: &str) -> Result<Option<T>> {
+impl RedisClient {
+    pub async fn get<T: DeserializeOwned>(&self, key: &str) -> Result<Option<T>> {
         let mut conn = self.manager.clone();
         
         match conn.get::<_, Option<String>>(key).await {
@@ -72,7 +71,7 @@ impl CacheOperations for RedisClient {
         }
     }
     
-    async fn set<T: Serialize + Send + Sync>(&self, key: &str, value: &T, ttl: u64) -> Result<()> {
+    pub async fn set<T: Serialize + Send + Sync>(&self, key: &str, value: &T, ttl: u64) -> Result<()> {
         let mut conn = self.manager.clone();
         
         let serialized = serde_json::to_string(value)?;
@@ -91,7 +90,7 @@ impl CacheOperations for RedisClient {
         }
     }
     
-    async fn delete(&self, key: &str) -> Result<()> {
+    pub async fn delete(&self, key: &str) -> Result<()> {
         let mut conn = self.manager.clone();
         
         let result: RedisResult<i64> = conn.del(key).await;
@@ -108,7 +107,7 @@ impl CacheOperations for RedisClient {
         }
     }
     
-    async fn exists(&self, key: &str) -> Result<bool> {
+    pub async fn exists(&self, key: &str) -> Result<bool> {
         let mut conn = self.manager.clone();
         
         match conn.exists(key).await {

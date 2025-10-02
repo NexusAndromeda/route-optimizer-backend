@@ -1,7 +1,3 @@
-//! Módulo de base de datos
+//! Base de datos simplificada
 //! 
-//! Este módulo maneja la conexión y configuración de la base de datos.
-
-pub mod connection;
-// connection - no se usa actualmente
-
+//! Este módulo está vacío - la conexión se maneja en main.rs
