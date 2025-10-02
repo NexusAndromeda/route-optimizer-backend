@@ -71,7 +71,7 @@ impl AppState {
         
         let result = tokens.get(&key).cloned();
         match &result {
-            Some(token) => log::info!("✅ Token encontrado para clave '{}'", key),
+            Some(_token) => log::info!("✅ Token encontrado para clave '{}'", key),
             None => log::warn!("❌ Token NO encontrado para clave '{}'", key),
         }
         result

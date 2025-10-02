@@ -133,7 +133,7 @@ pub async fn get_server_version() -> AxumJson<serde_json::Value> {
 }
 
 /// Endpoint de prueba para verificar que el State funciona
-pub async fn test_download(State(state): State<AppState>) -> AxumJson<serde_json::Value> {
+pub async fn test_download(State(_state): State<AppState>) -> AxumJson<serde_json::Value> {
     log::info!("🧪 Endpoint de prueba de descarga llamado");
     
     let response = json!({

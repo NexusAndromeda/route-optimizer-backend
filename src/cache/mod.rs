@@ -7,5 +7,4 @@ pub mod auth_cache;
 pub mod detail_cache;
 pub mod cache_config;
 
-pub use redis_client::RedisClient;
-pub use cache_config::{CacheConfig, CacheOperations};
+pub use cache_config::CacheConfig;

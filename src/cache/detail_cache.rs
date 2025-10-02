@@ -4,11 +4,10 @@
 //! al API detalle y reducir la latencia del sistema híbrido.
 
 use anyhow::Result;
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::RwLock;
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 
 use crate::clients::{ColisDetailResponse, DetailCacheConfig};
 
@@ -238,7 +237,7 @@ pub enum CacheStrategy {
 
 impl CacheStrategy {
     /// Determinar si un paquete debe ser cacheado
-    pub fn should_cache(&self, ref_colis: &str, response: &ColisDetailResponse) -> bool {
+    pub fn should_cache(&self, _ref_colis: &str, response: &ColisDetailResponse) -> bool {
         match self {
             CacheStrategy::Aggressive => true,
             CacheStrategy::Selective => {

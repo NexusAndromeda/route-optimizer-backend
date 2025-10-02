@@ -6,7 +6,7 @@
 use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, Type};
 use validator::Validate;
-use chrono::{DateTime, Utc, NaiveDate, NaiveTime};
+use chrono::{DateTime, Utc};
 use uuid::Uuid;
 use rust_decimal::Decimal;
 

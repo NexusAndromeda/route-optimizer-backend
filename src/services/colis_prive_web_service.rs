@@ -23,7 +23,7 @@ impl ColisPriveWebService {
     pub async fn execute_web_api_flow_complete(
         &self,
         username: &str,
-        password: &str,
+        _password: &str,
         societe: &str,
         date: &str,
     ) -> Result<serde_json::Value> {

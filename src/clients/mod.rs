@@ -8,13 +8,6 @@ pub mod colis_prive_client;
 pub use colis_prive_client::{
     ColisPriveWebClient,
     ColisDetailResponse,
-    ColisDetailData,
-    Coordonnees,
-    DonneesPhysiques,
-    Dimensions,
-    HistoriqueItem,
-    HorairesLivraison,
-    Contact,
     DetailCacheConfig,
 };
 

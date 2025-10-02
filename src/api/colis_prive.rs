@@ -800,7 +800,7 @@ pub async fn health_check_colis_prive() -> Result<Json<serde_json::Value>, Statu
 /// 🆕 FUNCIÓN DE AUTENTICACIÓN AUTOMÁTICA
 /// Intenta autenticar automáticamente cuando no hay token disponible
 async fn attempt_auto_auth(
-    state: &AppState,
+    _state: &AppState,
     username: &str,
     societe: &str,
 ) -> Result<String, anyhow::Error> {
@@ -820,12 +820,12 @@ async fn attempt_auto_auth(
     };
     
     // Intentar autenticación
-    match authenticate_colis_prive_simple(&credentials, &state.config).await {
+    match authenticate_colis_prive_simple(&credentials, &_state.config).await {
         Ok(auth_response) => {
             if auth_response.success {
                 if let Some(token) = auth_response.token {
                     // Almacenar el token en el estado
-                    state.store_auth_token(
+                    _state.store_auth_token(
                         username.to_string(),
                         societe.to_string(),
                         token.clone(),
@@ -1160,7 +1160,7 @@ async fn call_colis_prive_optimization(
 async fn optimize_route_for_packages(
     matricule: &str,
     sso_token: &str,
-    state: &AppState,
+    _state: &AppState,
 ) -> Result<ColisPriveOptimizationResponse, String> {
     use std::time::Duration;
     
@@ -1240,7 +1240,7 @@ fn apply_optimization_to_packages(
     // Actualizar cada paquete con su orden y reordenar
     let mut updated_packages: Vec<_> = packages
         .into_iter()
-        .map(|mut package| {
+        .map(|package| {
             // Buscar el orden optimizado para este paquete
             if let Some(&order) = order_map.get(&package.id) {
                 // Crear un nuevo PackageData con el orden actualizado

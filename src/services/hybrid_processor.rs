@@ -10,7 +10,7 @@ use tracing::warn;
 use crate::clients::{ColisPriveWebClient, ColisDetailResponse};
 use crate::cache::detail_cache::{DetailCache, CacheStrategy};
 use crate::analysis::delivery_classifier::DeliveryType;
-use crate::models::package::{Package, DeliveryStatus};
+use crate::models::package::Package;
 use crate::config::environment::EnvironmentConfig;
 
 /// Procesador híbrido para optimización de rutas
@@ -296,7 +296,7 @@ impl HybridProcessor {
     /// Clasificar paquete y determinar prioridad para API detalle
     async fn classify_and_prioritize_package(
         &self,
-        package: &Package,
+        _package: &Package,
     ) -> Result<(DeliveryType, DetailPriority)> {
         // Aquí implementarías la lógica de clasificación
         // Por ahora, simplificado

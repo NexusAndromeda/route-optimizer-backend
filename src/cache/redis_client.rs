@@ -3,7 +3,7 @@ use redis::{aio::ConnectionManager, AsyncCommands, RedisResult};
 use serde::{de::DeserializeOwned, Serialize};
 use tracing::{debug, error, info, warn};
 
-use super::cache_config::{CacheConfig, CacheOperations};
+use super::cache_config::CacheConfig;
 
 /// Cliente Redis con connection pooling y operaciones async
 #[derive(Clone)]

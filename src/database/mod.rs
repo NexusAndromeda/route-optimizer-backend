@@ -1,3 +1,7 @@
-//! Base de datos simplificada
+//! Módulo de base de datos
 //! 
-//! Este módulo está vacío - la conexión se maneja en main.rs
+//! Maneja la conexión y operaciones con PostgreSQL
+
+pub mod connection;
+
+pub use connection::DatabaseConnection;

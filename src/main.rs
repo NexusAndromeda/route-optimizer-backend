@@ -24,6 +24,7 @@ use serde_json::json;
 
 use config::environment::EnvironmentConfig;
 use state::*;
+use database::DatabaseConnection;
 
 use cache::redis_client::RedisClient;
 
@@ -41,25 +42,21 @@ async fn main() -> Result<()> {
     info!("================================================");
 
     // Inicializar base de datos
-    let database_url = std::env::var("DATABASE_URL")
-        .expect("DATABASE_URL debe estar definida en las variables de entorno");
-    
-    let pool = match sqlx::PgPool::connect(&database_url).await {
-        Ok(pool) => {
-            info!("✅ Base de datos conectada exitosamente");
-            pool
-        }
+    let db_connection = match DatabaseConnection::new_default().await {
+        Ok(conn) => conn,
         Err(e) => {
             error!("❌ Error conectando a la base de datos: {}", e);
             return Err(anyhow::anyhow!("Error de base de datos: {}", e));
         }
     };
+    
+    let pool = db_connection.pool().clone();
 
     // Inicializar Redis y cache
     let redis_url = std::env::var("REDIS_URL")
         .unwrap_or_else(|_| "redis://localhost:6379".to_string());
     
-    let redis_config = cache::cache_config::CacheConfig {
+    let redis_config = cache::CacheConfig {
         redis_url,
         default_ttl: 3600,
         max_connections: 10,

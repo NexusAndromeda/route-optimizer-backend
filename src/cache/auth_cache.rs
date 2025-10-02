@@ -2,7 +2,6 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info, warn};
 
-use super::cache_config::CacheOperations;
 use super::redis_client::RedisClient;
 
 /// Datos de autenticación cacheados
@@ -126,7 +125,7 @@ impl AuthCache {
     }
     
     /// Calcular tasa de hit del cache
-    async fn calculate_hit_rate(&self, username: &str, societe: &str) -> Result<f64> {
+    async fn calculate_hit_rate(&self, _username: &str, _societe: &str) -> Result<f64> {
         // Implementación simple: por ahora retornamos un valor fijo
         // En el futuro se puede implementar tracking real de hits/misses
         Ok(0.85) // 85% de hit rate estimado
