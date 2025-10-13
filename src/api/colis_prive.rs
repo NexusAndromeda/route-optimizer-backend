@@ -1139,7 +1139,10 @@ async fn call_colis_prive_optimization(
         .header("Sec-Fetch-Mode", "cors")
         .header("Sec-Fetch-Site", "same-site")
         .header("Sec-GPC", "1")
-        .header("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36")
+        .header("sec-ch-ua", r#""Brave";v="141", "Not?A_Brand";v="8", "Chromium";v="141""#)
+        .header("sec-ch-ua-mobile", "?0")
+        .header("sec-ch-ua-platform", r#""macOS""#)
+        .header("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36")
         .json(request)
         .timeout(Duration::from_secs(90)) // 90 segundos timeout
         .send()
