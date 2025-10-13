@@ -390,31 +390,44 @@ pub async fn get_packages(
                     // Procesar solo paquetes de tipo "COLIS"
                     if metier == "COLIS" {
                         Some(PackageData {
-                            id: package.get("idArticle")?.as_str()?.to_string(),
-                            tracking_number: package.get("refExterneArticle")?.as_str()?.to_string(),
-                            recipient_name: package.get("nomDestinataire")?.as_str()?.to_string(),
-                            address: format!(
+                            reference_colis: package.get("refExterneArticle")?.as_str()?.to_string(),
+                            destinataire_nom: package.get("nomDestinataire")?.as_str()?.to_string(),
+                            destinataire_adresse1: Some(package.get("LibelleVoieOrigineDestinataire")?.as_str()?.to_string()),
+                            destinataire_adresse2: None,
+                            destinataire_cp: Some(package.get("codePostalOrigineDestinataire")?.as_str()?.to_string()),
+                            destinataire_ville: Some(package.get("LibelleLocaliteOrigineDestinataire")?.as_str()?.to_string()),
+                            coord_x_destinataire: None,
+                            coord_y_destinataire: None,
+                            statut: Some(package.get("codeStatutArticle")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("UNKNOWN")
+                                .to_string()),
+                            numero_ordre: None,
+                            id: Some(package.get("idArticle")?.as_str()?.to_string()),
+                            tracking_number: Some(package.get("refExterneArticle")?.as_str()?.to_string()),
+                            recipient_name: Some(package.get("nomDestinataire")?.as_str()?.to_string()),
+                            address: Some(format!(
                                 "{}, {} {}",
                                 package.get("LibelleVoieOrigineDestinataire")?.as_str()?,
                                 package.get("codePostalOrigineDestinataire")?.as_str()?,
                                 package.get("LibelleLocaliteOrigineDestinataire")?.as_str()?
-                            ),
-                            status: package.get("codeStatutArticle")
+                            )),
+                            status: Some(package.get("codeStatutArticle")
                                 .and_then(|v| v.as_str())
                                 .unwrap_or("UNKNOWN")
-                                .to_string(),
-                            instructions: package.get("PreferenceLivraison")
+                                .to_string()),
+                            instructions: Some(package.get("PreferenceLivraison")
                                 .and_then(|v| v.as_str())
                                 .unwrap_or("")
-                                .to_string(),
-                            phone: package.get("telephoneMobileDestinataire")
+                                .to_string()),
+                            phone: Some(package.get("telephoneMobileDestinataire")
                                 .and_then(|v| v.as_str())
                                 .unwrap_or("")
-                                .to_string(),
-                            priority: package.get("priorite")
+                                .to_string()),
+                            priority: Some(package.get("priorite")
                                 .and_then(|v| v.as_u64())
                                 .unwrap_or(0)
-                                .to_string(),
+                                .to_string()),
                             latitude: None,
                             longitude: None,
                             formatted_address: None,
@@ -474,17 +487,21 @@ pub async fn get_packages(
             
             return Ok(Json(GetPackagesResponse {
                 success: true,
-                message: format!("🏁 Tournée completada - {} ha terminado su jornada. No hay paquetes pendientes.", nom_distributeur),
-                packages: Some(vec![]), // Lista vacía en lugar de None
+                packages: vec![],
+                total: 0,
+                message: Some(format!("🏁 Tournée completada - {} ha terminado su jornada. No hay paquetes pendientes.", nom_distributeur)),
                 error: None,
                 address_validation: Some(AddressValidationSummary {
                     total_packages: 0,
-                    auto_validated: 0,
-                    cleaned_auto: 0,
-                    completed_auto: 0,
-                    partial_found: 0,
-                    requires_manual: 0,
-                    warnings: vec![],
+                    with_coordinates: 0,
+                    without_coordinates: 0,
+                    auto_validated: Some(0),
+                    cleaned_auto: Some(0),
+                    completed_auto: Some(0),
+                    partial_found: Some(0),
+                    geocoding_errors: Some(0),
+                    requires_manual: Some(0),
+                    warnings: Some(vec![]),
                 }),
             }));
         } else {
@@ -492,17 +509,21 @@ pub async fn get_packages(
             log::warn!("⚠️ No se encontraron paquetes ni información de tournée");
             return Ok(Json(GetPackagesResponse {
                 success: true,
-                message: "No se encontraron paquetes para esta fecha".to_string(),
-                packages: Some(vec![]),
+                packages: vec![],
+                total: 0,
+                message: Some("No se encontraron paquetes para esta fecha".to_string()),
                 error: None,
                 address_validation: Some(AddressValidationSummary {
                     total_packages: 0,
-                    auto_validated: 0,
-                    cleaned_auto: 0,
-                    completed_auto: 0,
-                    partial_found: 0,
-                    requires_manual: 0,
-                    warnings: vec![],
+                    with_coordinates: 0,
+                    without_coordinates: 0,
+                    auto_validated: Some(0),
+                    cleaned_auto: Some(0),
+                    completed_auto: Some(0),
+                    partial_found: Some(0),
+                    geocoding_errors: Some(0),
+                    requires_manual: Some(0),
+                    warnings: Some(vec![]),
                 }),
             }));
         }
@@ -514,12 +535,15 @@ pub async fn get_packages(
     let mut validated_packages = Vec::new();
     let mut validation_summary = AddressValidationSummary {
         total_packages: optimized_packages.len(),
-        auto_validated: 0,
-        cleaned_auto: 0,
-        completed_auto: 0,
-        partial_found: 0,
-        requires_manual: 0,
-        warnings: Vec::new(),
+        with_coordinates: 0,
+        without_coordinates: 0,
+        auto_validated: Some(0),
+        cleaned_auto: Some(0),
+        completed_auto: Some(0),
+        partial_found: Some(0),
+        geocoding_errors: Some(0),
+        requires_manual: Some(0),
+        warnings: Some(Vec::new()),
     };
 
     // Crear el validador de direcciones
@@ -529,35 +553,44 @@ pub async fn get_packages(
         
         // Validar cada paquete
         for mut package in optimized_packages {
-            match address_validator.validate_address(&package.address, &request.matricule).await {
+            let default_addr = String::new();
+            let addr = package.address.as_ref().unwrap_or(&default_addr);
+            match address_validator.validate_address(addr, &request.matricule).await {
                 Ok(validated) => {
                     // Actualizar el paquete con la información de validación
                     package.latitude = validated.latitude;
                     package.longitude = validated.longitude;
                     package.formatted_address = validated.formatted_address;
                     package.validation_method = Some(format!("{:?}", validated.validation_method));
-                    package.validation_confidence = Some(format!("{:?}", validated.confidence));
+                    package.validation_confidence = match validated.confidence {
+                        crate::services::address_validation::ValidationConfidence::High => Some(0.9),
+                        crate::services::address_validation::ValidationConfidence::Medium => Some(0.7),
+                        crate::services::address_validation::ValidationConfidence::Low => Some(0.5),
+                        crate::services::address_validation::ValidationConfidence::None => Some(0.0),
+                    };
                     package.validation_warnings = Some(validated.warnings.clone());
                     
                     // Actualizar estadísticas
                     match validated.validation_method {
-                        ValidationMethod::Original => validation_summary.auto_validated += 1,
-                        ValidationMethod::Cleaned => validation_summary.cleaned_auto += 1,
-                        ValidationMethod::CompletedWithSector => validation_summary.completed_auto += 1,
-                        ValidationMethod::PartialSearch => validation_summary.partial_found += 1,
-                        ValidationMethod::ManualRequired => validation_summary.requires_manual += 1,
+                        ValidationMethod::Original => *validation_summary.auto_validated.get_or_insert(0) += 1,
+                        ValidationMethod::Cleaned => *validation_summary.cleaned_auto.get_or_insert(0) += 1,
+                        ValidationMethod::CompletedWithSector => *validation_summary.completed_auto.get_or_insert(0) += 1,
+                        ValidationMethod::PartialSearch => *validation_summary.partial_found.get_or_insert(0) += 1,
+                        ValidationMethod::ManualRequired => *validation_summary.requires_manual.get_or_insert(0) += 1,
                     }
                     
                     // Agregar warnings al resumen
-                    validation_summary.warnings.extend(validated.warnings);
+                    if let Some(ref mut warnings) = validation_summary.warnings {
+                        warnings.extend(validated.warnings);
+                    }
                     
                     validated_packages.push(package);
                 }
                 Err(e) => {
-                    log::error!("❌ Error validando dirección '{}': {}", package.address, e);
-                    validation_summary.requires_manual += 1;
+                    log::error!("❌ Error validando dirección '{}': {}", package.address.as_ref().unwrap_or(&"unknown".to_string()), e);
+                    *validation_summary.requires_manual.get_or_insert(0) += 1;
                     package.validation_method = Some("ManualRequired".to_string());
-                    package.validation_confidence = Some("None".to_string());
+                    package.validation_confidence = Some(0.0);
                     package.validation_warnings = Some(vec![format!("Error de validación: {}", e)]);
                     validated_packages.push(package);
                 }
@@ -565,22 +598,24 @@ pub async fn get_packages(
         }
         
         log::info!("✅ Validación completada: {} auto-validados, {} limpiados, {} completados, {} parciales, {} manuales", 
-            validation_summary.auto_validated, 
-            validation_summary.cleaned_auto, 
-            validation_summary.completed_auto, 
-            validation_summary.partial_found, 
-            validation_summary.requires_manual
+            validation_summary.auto_validated.unwrap_or(0), 
+            validation_summary.cleaned_auto.unwrap_or(0), 
+            validation_summary.completed_auto.unwrap_or(0), 
+            validation_summary.partial_found.unwrap_or(0), 
+            validation_summary.requires_manual.unwrap_or(0)
         );
     } else {
         log::warn!("⚠️ MAPBOX_TOKEN no configurado, saltando validación de direcciones");
-        validation_summary.requires_manual = optimized_packages.len();
+        validation_summary.requires_manual = Some(optimized_packages.len());
         validated_packages = optimized_packages;
     }
 
+    let total = validated_packages.len();
     Ok(Json(GetPackagesResponse {
         success: true,
-        message: format!("Paquetes obtenidos y validados exitosamente - {} paquetes", validated_packages.len()),
-        packages: Some(validated_packages),
+        packages: validated_packages,
+        total,
+        message: Some(format!("Paquetes obtenidos y validados exitosamente - {} paquetes", total)),
         error: None,
         address_validation: Some(validation_summary),
     }))
@@ -1262,15 +1297,16 @@ fn apply_optimization_to_packages(
         .into_iter()
         .map(|package| {
             // Buscar el orden optimizado para este paquete
-            if let Some(&order) = order_map.get(&package.id) {
-                // Crear un nuevo PackageData con el orden actualizado
-                PackageData {
-                    num_ordre_passage_prevu: Some(order as i32),
-                    ..package
+            if let Some(ref pkg_id) = package.id {
+                if let Some(&order) = order_map.get(pkg_id) {
+                    // Crear un nuevo PackageData con el orden actualizado
+                    return PackageData {
+                        num_ordre_passage_prevu: Some(order as i32),
+                        ..package
+                    };
                 }
-            } else {
-                package
             }
+            package
         })
         .collect();
     

@@ -97,3 +97,23 @@ impl ColisPriveCompaniesService {
         Ok(companies)
     }
 }
+
+// Función helper pública para obtener empresas
+pub async fn fetch_all_companies() -> Result<Vec<crate::models::colis_prive_company::ColisPriveCompany>, crate::utils::errors::AppError> {
+    let service = ColisPriveCompaniesService::new(
+        std::env::var("COLIS_PRIVE_GESTION_URL")
+            .unwrap_or_else(|_| "https://gestiontournee.colisprive.com".to_string())
+    );
+    
+    service.get_companies()
+        .await
+        .map(|companies| {
+            companies.into_iter().map(|c| crate::models::colis_prive_company::ColisPriveCompany {
+                code: c.code,
+                name: c.libelle,
+                description: None,
+            }).collect()
+        })
+        .map_err(|e| crate::utils::errors::AppError::ExternalApi(format!("Error fetching companies: {}", e)))
+}
+

@@ -83,15 +83,16 @@ async fn main() -> Result<()> {
     
     let app = Router::new()
         .route("/test", get(test_endpoint))
-        // Legacy Colis Privé routes (mantener por compatibilidad)
-        .route("/colis-prive/companies", get(api::colis_prive::get_companies))
-        .route("/colis-prive/packages-test", get(api::colis_prive::test_packages_endpoint))
-        .route("/colis-prive/packages", post(api::colis_prive::get_packages))
         // Nuevas rutas MVC
         .nest("/api/company", routes::company_routes::create_company_router())
         .nest("/api/vehicle", routes::vehicle_routes::create_vehicle_router())
         .nest("/api/address", routes::address_routes::create_address_router())
-        // migration endpoints eliminados - código legacy
+        .nest("/api/colis-prive", routes::colis_prive_routes::create_colis_prive_routes())
+        // Legacy Colis Privé routes (mantener por compatibilidad temporal)
+        .route("/colis-prive/companies", get(api::colis_prive::get_companies))
+        .route("/colis-prive/packages-test", get(api::colis_prive::test_packages_endpoint))
+        .route("/colis-prive/packages", post(api::colis_prive::get_packages))
+        // Otros endpoints legacy
         .merge(api::create_api_router())
         .layer(cors_middleware())
         .with_state(app_state);
@@ -120,13 +121,16 @@ async fn main() -> Result<()> {
     info!("   PUT  /api/address/:id - Actualizar código/BAL");
     info!("   DELETE /api/address/:id - Eliminar dirección");
     info!("   GET  /api/address/route/:route_id - Direcciones por ruta");
-    info!("📦 Endpoints Legacy - Colis Privé:");
-    info!("   GET  colis-prive/health - Health check");
-    info!("   GET  colis-prive/companies - Obtener empresas");
-    info!("   POST colis-prive/auth - Autenticación");
-    info!("   GET  colis-prive/packages-test - Test endpoint");
-    info!("   POST colis-prive/packages - Obtener paquetes");
-    info!("   POST colis-prive/tournee - Tournée Colis Privé (API Web)");
+    info!("📦 Endpoints MVC - Colis Privé:");
+    info!("   POST /api/colis-prive/auth - Autenticación");
+    info!("   POST /api/colis-prive/packages - Obtener paquetes");
+    info!("   POST /api/colis-prive/optimize - Optimizar ruta");
+    info!("   GET  /api/colis-prive/companies - Listar empresas");
+    info!("   GET  /api/colis-prive/health - Health check");
+    info!("📦 Endpoints Legacy - Colis Privé (Deprecados):");
+    info!("   GET  colis-prive/companies - Usar /api/colis-prive/companies");
+    info!("   POST colis-prive/packages - Usar /api/colis-prive/packages");
+    info!("   POST colis-prive/auth - Usar /api/colis-prive/auth");
     // migration endpoints eliminados - código legacy
     info!("🚀 Endpoints Híbridos (Nuevos):");
     info!("   POST hybrid/process - Procesamiento híbrido de paquetes");
