@@ -305,83 +305,140 @@ impl ColisPriveService {
         matricule: &str,
         societe: &str,
         date: Option<&str>,
-    ) -> Result<Vec<PackageData>, AppError> {
+    ) -> Result<Vec<colis_prive_dto::PackageData>, AppError> {
         let date_str = date
             .map(|d| d.to_string())
             .unwrap_or_else(|| Utc::now().format("%Y-%m-%d").to_string());
 
-        let tournee_request = TourneeApiRequest {
-            code_societe: societe.to_string(),
-            matricule: matricule.to_string(),
-            date_heure_debut: format!("{}T00:00:00", date_str),
-        };
+        let matricule_completo = format!("{}_{}", societe, matricule);
+        
+        let payload = serde_json::json!({
+            "Matricule": matricule_completo,
+            "DateDebut": date_str
+        });
 
-        let response = self.client
-            .post("https://wstournee-v2.colisprive.com/WS-TourneeColis/api/recupTourneeColisAvecNonProspect_POST/")
-            .header("SsoHopps", sso_token)
-            .header("Content-Type", "application/json")
-            .json(&tournee_request)
-            .send()
-            .await
-            .map_err(|e| AppError::ExternalApi(format!("Error en request de tournée: {}", e)))?;
+        let payload_str = serde_json::to_string(&payload)
+            .map_err(|e| AppError::Internal(format!("Error serializando payload: {}", e)))?;
 
-        if !response.status().is_success() {
-            return Err(AppError::ExternalApi(format!("Error obteniendo tournée: {}", response.status())));
+        let tournee_url = format!("{}/WS-TourneeColis/api/getTourneeByMatriculeDistributeurDateDebut_POST", self.config.colis_prive_tournee_url);
+        
+        log::info!("📤 Llamando a tournée: {}", tournee_url);
+        log::info!("📦 Payload: {}", payload_str);
+        log::info!("🔑 Token: {}...", &sso_token[..20.min(sso_token.len())]);
+
+        // Usar curl
+        let curl_output = std::process::Command::new("curl")
+            .arg("-X")
+            .arg("POST")
+            .arg(&tournee_url)
+            .arg("-H")
+            .arg("Accept: application/json, text/plain, */*")
+            .arg("-H")
+            .arg("Accept-Language: fr-FR,fr;q=0.6")
+            .arg("-H")
+            .arg("Connection: keep-alive")
+            .arg("-H")
+            .arg("Content-Type: application/json")
+            .arg("-H")
+            .arg("Origin: https://gestiontournee.colisprive.com")
+            .arg("-H")
+            .arg("Referer: https://gestiontournee.colisprive.com/")
+            .arg("-H")
+            .arg("Sec-Fetch-Dest: empty")
+            .arg("-H")
+            .arg("Sec-Fetch-Mode: cors")
+            .arg("-H")
+            .arg("Sec-Fetch-Site: same-site")
+            .arg("-H")
+            .arg("Sec-GPC: 1")
+            .arg("-H")
+            .arg(format!("SsoHopps: {}", sso_token))
+            .arg("-H")
+            .arg("User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36")
+            .arg("-H")
+            .arg("sec-ch-ua: \"Chromium\";v=\"141\", \"Not=A?Brand\";v=\"24\", \"Brave\";v=\"141\"")
+            .arg("-H")
+            .arg("sec-ch-ua-mobile: ?0")
+            .arg("-H")
+            .arg("sec-ch-ua-platform: \"macOS\"")
+            .arg("--data-raw")
+            .arg(&payload_str)
+            .arg("--max-time")
+            .arg("30")
+            .arg("--silent")
+            .arg("--show-error")
+            .output()
+            .map_err(|e| AppError::ExternalApi(format!("Error ejecutando curl: {}", e)))?;
+
+        if !curl_output.status.success() {
+            let error_msg = String::from_utf8_lossy(&curl_output.stderr);
+            log::error!("❌ Curl falló: {}", error_msg);
+            return Err(AppError::ExternalApi(format!("Curl falló: {}", error_msg)));
         }
 
-        let tournee_response: TourneeApiResponse = response
-            .json()
-            .await
+        let response_str = String::from_utf8_lossy(&curl_output.stdout);
+        log::info!("📥 Respuesta recibida: {} bytes", response_str.len());
+
+        // Parsear la respuesta JSON
+        let tournee_data: serde_json::Value = serde_json::from_str(&response_str)
             .map_err(|e| AppError::ExternalApi(format!("Error parsing tournee response: {}", e)))?;
 
-        if !tournee_response.success {
-            return Err(AppError::ExternalApi("Tournée request failed".to_string()));
-        }
-
-        let data = tournee_response.data
-            .ok_or_else(|| AppError::ExternalApi("No data in tournee response".to_string()))?;
+        // Extraer paquetes de LstLieuArticle
+        let lst_lieu_article = tournee_data
+            .get("LstLieuArticle")
+            .and_then(|v| v.as_array())
+            .ok_or_else(|| AppError::ExternalApi("No LstLieuArticle in response".to_string()))?;
 
         // Convertir a PackageData
-        let packages: Vec<colis_prive_dto::PackageData> = data.lst_lieu_article
-            .into_iter()
-            .map(|lieu| {
-                let ref_colis = lieu.reference_colis.clone().unwrap_or_default();
-                let nom = lieu.destinataire_nom.clone().unwrap_or_default();
-                let addr1 = lieu.destinataire_adresse1.clone().unwrap_or_default();
-                let ville = lieu.destinataire_ville.clone().unwrap_or_default();
+        let packages: Vec<colis_prive_dto::PackageData> = lst_lieu_article
+            .iter()
+            .filter_map(|package| {
+                // Filtrar solo COLIS
+                let metier = package.get("metier")?.as_str().unwrap_or("UNKNOWN");
+                if metier != "COLIS" {
+                    return None;
+                }
                 
-                colis_prive_dto::PackageData {
+                let ref_colis = package.get("refExterneArticle")?.as_str()?.to_string();
+                let nom = package.get("nomDestinataire")?.as_str()?.to_string();
+                let addr1 = package.get("LibelleVoieOrigineDestinataire")?.as_str()?.to_string();
+                let cp = package.get("codePostalOrigineDestinataire")?.as_str()?.to_string();
+                let ville = package.get("LibelleLocaliteOrigineDestinataire")?.as_str()?.to_string();
+                
+                Some(colis_prive_dto::PackageData {
                     // Campos principales
                     reference_colis: ref_colis.clone(),
                     destinataire_nom: nom.clone(),
-                    destinataire_adresse1: lieu.destinataire_adresse1.clone(),
-                    destinataire_adresse2: lieu.destinataire_adresse2.clone(),
-                    destinataire_cp: lieu.destinataire_cp.clone(),
-                    destinataire_ville: lieu.destinataire_ville.clone(),
-                    coord_x_destinataire: lieu.coord_x_destinataire,
-                    coord_y_destinataire: lieu.coord_y_destinataire,
-                    statut: lieu.statut.clone(),
-                    numero_ordre: lieu.numero_ordre,
+                    destinataire_adresse1: Some(addr1.clone()),
+                    destinataire_adresse2: None,
+                    destinataire_cp: Some(cp.clone()),
+                    destinataire_ville: Some(ville.clone()),
+                    coord_x_destinataire: package.get("coordXOrigineDestinataire").and_then(|v| v.as_f64()),
+                    coord_y_destinataire: package.get("coordYOrigineDestinataire").and_then(|v| v.as_f64()),
+                    statut: package.get("codeStatutArticle").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                    numero_ordre: package.get("numeroOrdre").and_then(|v| v.as_i64()).map(|n| n as i32),
                     
                     // Campos legacy
-                    id: Some(ref_colis.clone()),
-                    tracking_number: Some(ref_colis),
-                    recipient_name: Some(nom),
-                    address: Some(format!("{} {}", addr1, ville)),
-                    status: lieu.statut.clone(),
-                    instructions: None,
-                    phone: None,
+                    id: Some(package.get("idArticle")?.as_str()?.to_string()),
+                    tracking_number: Some(ref_colis.clone()),
+                    recipient_name: Some(nom.clone()),
+                    address: Some(format!("{}, {} {}", addr1, cp, ville)),
+                    status: package.get("codeStatutArticle").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                    instructions: package.get("PreferenceLivraison").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                    phone: package.get("telephoneMobileDestinataire").and_then(|v| v.as_str()).map(|s| s.to_string()),
                     priority: None,
-                    latitude: lieu.coord_y_destinataire,
-                    longitude: lieu.coord_x_destinataire,
-                    formatted_address: Some(format!("{} {}", addr1, ville)),
+                    latitude: package.get("coordYOrigineDestinataire").and_then(|v| v.as_f64()),
+                    longitude: package.get("coordXOrigineDestinataire").and_then(|v| v.as_f64()),
+                    formatted_address: Some(format!("{}, {} {}", addr1, cp, ville)),
                     validation_method: None,
                     validation_confidence: None,
                     validation_warnings: None,
-                    num_ordre_passage_prevu: lieu.numero_ordre,
-                }
+                    num_ordre_passage_prevu: package.get("numeroOrdre").and_then(|v| v.as_i64()).map(|n| n as i32),
+                })
             })
             .collect();
+
+        log::info!("✅ Paquetes obtenidos: {}", packages.len());
 
         Ok(packages)
     }
