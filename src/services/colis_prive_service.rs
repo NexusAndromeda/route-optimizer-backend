@@ -257,35 +257,31 @@ impl ColisPriveService {
         let json_response: serde_json::Value = serde_json::from_str(&response_body)
             .map_err(|e| AppError::ExternalApi(format!("Error parsing auth response: {}", e)))?;
 
-        // Extraer el token - puede estar en varios lugares
+        // Extraer el token - está en tokens.SsoHopps (el largo)
         let sso_token = json_response
-            .get("shortToken")
-            .or_else(|| json_response.get("SsoHopps"))
-            .or_else(|| json_response.get("ssoHopps"))
-            .or_else(|| json_response.get("tokens")
-                .and_then(|t| t.get("SsoHopps")))
-            .or_else(|| json_response.get("habilitationAD")
-                .and_then(|h| h.as_array())
-                .and_then(|arr| arr.get(0))
-                .and_then(|item| item.get("valeur")))
+            .get("tokens")
+            .and_then(|t| t.get("SsoHopps"))
             .and_then(|v| v.as_str())
             .ok_or_else(|| {
-                log::error!("❌ Token no encontrado. Campos disponibles: {:?}", 
+                log::error!("❌ Token no encontrado en tokens.SsoHopps");
+                log::error!("🔍 Response keys: {:?}", 
                     json_response.as_object().map(|obj| obj.keys().collect::<Vec<_>>()));
                 AppError::ExternalApi("Token no encontrado en response".to_string())
             })?
             .to_string();
         
-        log::info!("✅ Token extraído: {}...", &sso_token[..20.min(sso_token.len())]);
+        log::info!("✅ Token extraído ({}... bytes)", sso_token.len());
 
         let matricule_chauffeur = json_response
-            .get("matriculeChauffeur")
+            .get("matricule")
+            .or_else(|| json_response.get("matriculeChauffeur"))
             .and_then(|v| v.as_str())
-            .unwrap_or(username)
+            .unwrap_or(&login_field)
             .to_string();
 
         let nom_chauffeur = json_response
-            .get("nomChauffeur")
+            .get("nom")
+            .or_else(|| json_response.get("nomChauffeur"))
             .and_then(|v| v.as_str())
             .unwrap_or("Chauffeur")
             .to_string();
