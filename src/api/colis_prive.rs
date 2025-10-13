@@ -1011,6 +1011,8 @@ struct LieuArticle {
 #[derive(Serialize, Deserialize)]
 pub struct OptimizationRequest {
     matricule: String,
+    #[serde(default)]
+    societe: Option<String>,
 }
 
 
@@ -1021,17 +1023,22 @@ pub async fn optimize_tournee(
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     log::info!("🎯 Iniciando optimización de ruta para matricule: {}", request.matricule);
     
+    // Obtener societe del request
+    let societe = request.societe.clone().unwrap_or_else(|| "PCP0010699".to_string());
+    
+    // Construir matricule completo (SOCIETE_USERNAME)
+    let full_matricule = format!("{}_{}", societe, request.matricule);
+    
     // Generar código de tournée dinámicamente
-    let matricule_suffix = request.matricule.split('_').last().unwrap_or("");
-    let code_tournee = format!("PCP0010699_{}-{}", 
-        matricule_suffix,
+    let code_tournee = format!("{}-{}", 
+        full_matricule,
         chrono::Utc::now().format("%Y%m%d")
     );
     
     // Crear request para Colis Privé
     let optimization_request = ColisPriveOptimizationRequest {
-        code_societe: "PCP0010699".to_string(),
-        matricule: request.matricule.clone(),
+        code_societe: societe.clone(),
+        matricule: full_matricule,
         date_heure_debut: chrono::Utc::now().to_rfc3339(),
         coord_x: None,
         coord_y: None,
@@ -1044,7 +1051,7 @@ pub async fn optimize_tournee(
     };
     
     // Obtener token SSO para la request
-    let sso_token = match get_sso_token_for_matricule(&request.matricule, &state).await {
+    let sso_token = match get_sso_token_for_matricule(&request.matricule, &societe, &state).await {
         Ok(token) => token,
         Err(e) => {
             log::error!("❌ Error obteniendo token SSO: {}", e);
@@ -1086,23 +1093,25 @@ pub async fn optimize_tournee(
     }
 }
 
-async fn get_sso_token_for_matricule(matricule: &str, state: &AppState) -> Result<String, AppError> {
-    // Extraer username y societe del matricule
-    let parts: Vec<&str> = matricule.split('_').collect();
-    if parts.len() < 3 {
-        return Err(AppError::BadRequest("Formato de matricule inválido".to_string()));
-    }
-    
-    let societe = parts[0];
-    let username = parts[1];
-    
+async fn get_sso_token_for_matricule(matricule: &str, societe: &str, state: &AppState) -> Result<String, AppError> {
     // Buscar token en el estado de la aplicación
-    if let Some(auth_token) = state.get_auth_token(username, societe).await {
+    if let Some(auth_token) = state.get_auth_token(matricule, societe).await {
+        if auth_token.is_expired() {
+            log::warn!("⚠️ Token expirado para {}:{}", societe, matricule);
+            // Intentar autenticación automática
+            return match attempt_auto_auth(state, matricule, societe).await {
+                Ok(token) => Ok(token),
+                Err(e) => {
+                    log::error!("❌ Error en autenticación automática: {}", e);
+                    Err(AppError::Unauthorized(format!("Error en autenticación automática: {}", e)))
+                }
+            };
+        }
         return Ok(auth_token.token);
     }
     
     // Si no hay token, intentar autenticación automática
-    match attempt_auto_auth(state, username, societe).await {
+    match attempt_auto_auth(state, matricule, societe).await {
         Ok(token) => Ok(token),
         Err(e) => {
             log::error!("❌ Error en autenticación automática: {}", e);
