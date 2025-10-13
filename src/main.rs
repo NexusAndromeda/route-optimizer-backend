@@ -9,6 +9,10 @@ mod models;
 mod cache;
 mod middleware;
 mod analysis;
+mod controllers;
+mod repositories;
+mod routes;
+mod dto;
 
 use anyhow::Result;
 use axum::{
@@ -79,9 +83,14 @@ async fn main() -> Result<()> {
     
     let app = Router::new()
         .route("/test", get(test_endpoint))
+        // Legacy Colis Privé routes (mantener por compatibilidad)
         .route("/colis-prive/companies", get(api::colis_prive::get_companies))
         .route("/colis-prive/packages-test", get(api::colis_prive::test_packages_endpoint))
         .route("/colis-prive/packages", post(api::colis_prive::get_packages))
+        // Nuevas rutas MVC
+        .nest("/api/company", routes::company_routes::create_company_router())
+        .nest("/api/vehicle", routes::vehicle_routes::create_vehicle_router())
+        .nest("/api/address", routes::address_routes::create_address_router())
         // migration endpoints eliminados - código legacy
         .merge(api::create_api_router())
         .layer(cors_middleware())
@@ -94,9 +103,20 @@ async fn main() -> Result<()> {
     info!("🌐 Servidor iniciando en http://{}", addr);
     info!("🔍 Endpoints disponibles:");
     info!("   GET  /test - Endpoint de prueba");
-    info!("   GET  colis-prive/health - Health check Colis Privé");
-    info!("   GET  colis-prive/companies - Obtener empresas disponibles");
-    info!("   POST colis-prive/auth - Autenticación Colis Privé");
+    info!("🏢 Endpoints MVC - Company:");
+    info!("   POST /api/company/register - Registrar empresa");
+    info!("   POST /api/company/login - Login empresa");
+    info!("   GET  /api/company/me - Obtener empresa actual");
+    info!("🚗 Endpoints MVC - Vehicle (TODO):");
+    info!("   POST /api/vehicle - Crear vehículo");
+    info!("   GET  /api/vehicle - Listar vehículos");
+    info!("📍 Endpoints MVC - Address (TODO):");
+    info!("   POST /api/address - Guardar código puerta/BAL");
+    info!("   GET  /api/address - Obtener direcciones");
+    info!("📦 Endpoints Legacy - Colis Privé:");
+    info!("   GET  colis-prive/health - Health check");
+    info!("   GET  colis-prive/companies - Obtener empresas");
+    info!("   POST colis-prive/auth - Autenticación");
     info!("   GET  colis-prive/packages-test - Test endpoint");
     info!("   POST colis-prive/packages - Obtener paquetes");
     info!("   POST colis-prive/tournee - Tournée Colis Privé (API Web)");

@@ -40,6 +40,33 @@ impl From<&EnvironmentConfig> for JwtConfig {
     }
 }
 
+/// Crear JWT token simple (para nuevo sistema MVC)
+pub fn create_jwt_token(company_id: &str, email: &str) -> Result<String, AppError> {
+    let secret = std::env::var("JWT_SECRET")
+        .unwrap_or_else(|_| "your-secret-key".to_string());
+    let expiration = std::env::var("JWT_EXPIRATION")
+        .unwrap_or_else(|_| "86400".to_string())
+        .parse::<u64>()
+        .unwrap_or(86400);
+    
+    let now = chrono::Utc::now();
+    let expires_at = now + chrono::Duration::seconds(expiration as i64);
+    
+    let claims = JwtClaims {
+        sub: email.to_string(),
+        company_id: company_id.to_string(),
+        exp: expires_at.timestamp() as usize,
+        iat: now.timestamp() as usize,
+    };
+    
+    encode(
+        &Header::default(),
+        &claims,
+        &EncodingKey::from_secret(secret.as_ref()),
+    )
+    .map_err(|e| AppError::Internal(format!("Error creating JWT: {}", e)))
+}
+
 /// Generar JWT token para un usuario
 pub fn generate_token(
     user_id: Uuid,

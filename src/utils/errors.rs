@@ -55,6 +55,12 @@ pub enum AppError {
 
     #[error("Not implemented: {0}")]
     NotImplemented(String),
+    
+    #[error("Database error: {0}")]
+    DatabaseError(String),
+    
+    #[error("Validation error: {0}")]
+    ValidationError(String),
 }
 
 /// Respuesta de error para la API
@@ -249,6 +255,32 @@ impl IntoResponse for AppError {
                         message: msg,
                         details: None,
                         code: Some("NOT_IMPLEMENTED".to_string()),
+                    },
+                )
+            }
+            
+            AppError::DatabaseError(msg) => {
+                eprintln!("Database error: {}", msg);
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    ErrorResponse {
+                        error: "Database Error".to_string(),
+                        message: "An error occurred while accessing the database".to_string(),
+                        details: Some(json!({ "database_error": msg })),
+                        code: Some("DATABASE_ERROR".to_string()),
+                    },
+                )
+            }
+            
+            AppError::ValidationError(msg) => {
+                eprintln!("Validation error: {}", msg);
+                (
+                    StatusCode::BAD_REQUEST,
+                    ErrorResponse {
+                        error: "Validation Error".to_string(),
+                        message: msg,
+                        details: None,
+                        code: Some("VALIDATION_ERROR".to_string()),
                     },
                 )
             }
