@@ -7,7 +7,6 @@
 -- =====================================================
 
 -- Índices para relaciones principales
-CREATE INDEX idx_users_company_id ON users(company_id);
 CREATE INDEX idx_vehicles_company_id ON vehicles(company_id);
 CREATE INDEX idx_vehicle_documents_vehicle_id ON vehicle_documents(vehicle_id);
 CREATE INDEX idx_routes_company_id ON routes(company_id);
@@ -21,7 +20,7 @@ CREATE INDEX idx_addresses_coordinates ON addresses USING GIST(coordinates);
 
 -- Índices para búsquedas frecuentes
 CREATE INDEX idx_companies_siret ON companies(siret);
-CREATE INDEX idx_users_email ON users(email);
+CREATE INDEX idx_companies_admin_email ON companies(admin_email);
 CREATE INDEX idx_vehicles_license_plate ON vehicles(license_plate);
 CREATE INDEX idx_vehicle_documents_expiry_date ON vehicle_documents(expiry_date);
 CREATE INDEX idx_vehicle_damages_incident_date ON vehicle_damages(incident_date);
