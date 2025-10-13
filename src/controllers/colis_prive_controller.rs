@@ -27,10 +27,19 @@ impl ColisPriveController {
         // Llamar al servicio para autenticar
         match self.service.authenticate(&request.username, &request.password, &request.societe).await {
             Ok(auth_data) => {
+                // Extraer solo la parte del matricule (después del _)
+                let matricule_only = if let Some(pos) = auth_data.matricule_chauffeur.rfind('_') {
+                    &auth_data.matricule_chauffeur[pos + 1..]
+                } else {
+                    &auth_data.matricule_chauffeur
+                };
+                
+                log::info!("💾 Guardando token para {}:{}", request.societe, matricule_only);
+                
                 // Guardar token en cache
                 self.repository.save_token(
                     &request.societe,
-                    &auth_data.matricule_chauffeur,
+                    matricule_only,
                     crate::state::AuthToken::new(
                         auth_data.sso_token.clone(),
                         request.username.clone(),
