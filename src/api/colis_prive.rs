@@ -1097,7 +1097,7 @@ async fn get_sso_token_for_matricule(matricule: &str, societe: &str, state: &App
     // Buscar token en el estado de la aplicación
     if let Some(auth_token) = state.get_auth_token(matricule, societe).await {
         if auth_token.is_expired() {
-            log::warn!("⚠️ Token expirado para {}:{}", societe, matricule);
+            log::warn!("⚠️ Token expirado para {}:{}, obteniendo uno fresco", societe, matricule);
             // Intentar autenticación automática
             return match attempt_auto_auth(state, matricule, societe).await {
                 Ok(token) => Ok(token),
@@ -1107,9 +1107,11 @@ async fn get_sso_token_for_matricule(matricule: &str, societe: &str, state: &App
                 }
             };
         }
+        log::info!("✅ Usando token SSO válido del cache");
         return Ok(auth_token.token);
     }
     
+    log::info!("🔄 No hay token en cache, obteniendo uno nuevo para {}:{}", societe, matricule);
     // Si no hay token, intentar autenticación automática
     match attempt_auto_auth(state, matricule, societe).await {
         Ok(token) => Ok(token),
