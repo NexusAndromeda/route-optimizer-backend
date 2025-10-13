@@ -25,7 +25,7 @@ pub fn cors_middleware() -> CorsLayer {
             HeaderName::from_static("origin"),
             HeaderName::from_static("x-requested-with"),
         ])
-        .allow_credentials(true)
+        .allow_credentials(false) // Cambiado a false para permitir Any origin
         .max_age(std::time::Duration::from_secs(3600))
 }
 
