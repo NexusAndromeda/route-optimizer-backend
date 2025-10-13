@@ -9,7 +9,7 @@ use tower_http::cors::{Any, CorsLayer};
 /// Crear middleware de CORS configurado para desarrollo
 /// NOTA: Permite cualquier origen - solo para desarrollo
 pub fn cors_middleware() -> CorsLayer {
-    CorsLayer::permissive()
+    CorsLayer::very_permissive()
 }
 
 /// Crear middleware de CORS con orígenes específicos
