@@ -4,11 +4,9 @@ mod state;
 mod database;
 mod services;
 mod utils;
-mod clients;
 mod models;
 mod cache;
 mod middleware;
-mod analysis;
 mod controllers;
 mod repositories;
 mod routes;
@@ -88,12 +86,8 @@ async fn main() -> Result<()> {
         .nest("/api/vehicle", routes::vehicle_routes::create_vehicle_router())
         .nest("/api/address", routes::address_routes::create_address_router())
         .nest("/api/colis-prive", routes::colis_prive_routes::create_colis_prive_routes())
-        // Legacy Colis Privé routes (mantener por compatibilidad temporal)
-        .route("/colis-prive/companies", get(api::colis_prive::get_companies))
-        .route("/colis-prive/packages-test", get(api::colis_prive::test_packages_endpoint))
-        .route("/colis-prive/packages", post(api::colis_prive::get_packages))
-        // Otros endpoints legacy
-        .merge(api::create_api_router())
+        // Endpoints legacy (geocoding, hybrid)
+        .merge(api::create_legacy_api_router())
         .layer(cors_middleware())
         .with_state(app_state);
 
@@ -127,26 +121,8 @@ async fn main() -> Result<()> {
     info!("   POST /api/colis-prive/optimize - Optimizar ruta");
     info!("   GET  /api/colis-prive/companies - Listar empresas");
     info!("   GET  /api/colis-prive/health - Health check");
-    info!("📦 Endpoints Legacy - Colis Privé (Deprecados):");
-    info!("   GET  colis-prive/companies - Usar /api/colis-prive/companies");
-    info!("   POST colis-prive/packages - Usar /api/colis-prive/packages");
-    info!("   POST colis-prive/auth - Usar /api/colis-prive/auth");
-    // migration endpoints eliminados - código legacy
-    info!("🚀 Endpoints Híbridos (Nuevos):");
-    info!("   POST hybrid/process - Procesamiento híbrido de paquetes");
-    info!("   POST hybrid/package-detail - Obtener datos detallados");
-    info!("   POST hybrid/cache/cleanup - Limpiar cache");
-    info!("   POST hybrid/cache/stats - Estadísticas de cache");
-    info!("📱 Endpoints Móviles (Nuevos):");
-    info!("   POST mobile/tournee - Obtener tournée para móvil");
-    info!("   POST mobile/package/update-status - Actualizar estado paquete");
-    info!("   POST mobile/route/optimize - Optimizar ruta");
-    info!("   GET  mobile/stats - Estadísticas móviles");
-    info!("🔄 Endpoints de Actualización:");
-    info!("   POST mobile/check-update - Verificar actualizaciones disponibles");
-    info!("   GET  mobile/download/apk - Descargar APK de la aplicación");
-    info!("   GET  mobile/test-download - Endpoint de prueba de descarga");
-    info!("   GET  mobile/server-version - Información de versión del servidor");
+    info!("🔧 Endpoints Legacy:");
+    info!("   POST /api/geocoding - Geocodificación Mapbox");
 
     // Iniciar servidor en background
     let server_handle = tokio::spawn(async move {

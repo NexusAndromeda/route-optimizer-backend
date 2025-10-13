@@ -1,23 +1,15 @@
-//! API endpoints
+//! API endpoints legacy
 //! 
-//! Este módulo contiene los endpoints de la API.
+//! Este módulo contiene endpoints legacy que aún se mantienen.
+//! Los nuevos endpoints están en src/routes/
 
-pub mod colis_prive;
-pub mod colis_prive_router;
 pub mod geocoding;
-pub mod hybrid;
-// pub mod auth; // Comentado temporalmente - ahora usamos MVC
-
-pub use colis_prive_router::*;
 
 use axum::Router;
 use crate::state::AppState;
 
-/// Crear el router principal de la API
-pub fn create_api_router() -> Router<AppState> {
+/// Crear el router legacy de la API
+pub fn create_legacy_api_router() -> Router<AppState> {
     Router::new()
-        .nest("/colis-prive", create_colis_prive_router())
-        .nest("/api", geocoding::create_geocoding_router())
-        .merge(hybrid::create_router())
-        // .merge(auth::create_auth_router()) // Comentado - ahora usamos /api/company/login
+        .nest("/api/geocoding", geocoding::create_geocoding_router())
 }

@@ -4,7 +4,6 @@
 
 pub mod colis_prive_service;
 pub mod colis_prive_companies_service;
-pub mod colis_prive_web_service;
 pub mod geocoding_service;
 pub mod address_validation;
-pub mod hybrid_processor;
+// pub mod hybrid_processor; // Comentado - legacy, necesita refactoring
