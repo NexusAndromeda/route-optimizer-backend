@@ -177,53 +177,124 @@ impl ColisPriveService {
         password: &str,
         societe: &str,
     ) -> Result<AuthenticationResult, AppError> {
-        let full_username = format!("{}_{}", societe, username);
-
-        let auth_request = AuthApiRequest {
-            identifiant: full_username.clone(),
-            mot_de_passe: password.to_string(),
-        };
-
-        log::info!("🔗 Conectando a wsauth.colisprive.com...");
+        let login_field = format!("{}_{}", societe, username.trim());
         
-        let response = self.client
-            .post("https://wsauth.colisprive.com/WS-AuthColis/api/authColisPriveLogin_POST/")
-            .json(&auth_request)
-            .timeout(std::time::Duration::from_secs(30))
-            .send()
-            .await
+        let auth_payload = serde_json::json!({
+            "login": login_field,
+            "password": password,
+            "societe": societe,
+            "commun": {
+                "dureeTokenInHour": 24
+            }
+        });
+
+        let auth_url = format!("{}/api/auth/login/Membership", self.config.colis_prive_auth_url);
+        
+        log::info!("🔗 Usando curl para autenticación en {}...", auth_url);
+        log::info!("🔑 Login field: {}", login_field);
+        
+        // Serializar payload
+        let auth_payload_str = serde_json::to_string(&auth_payload)
+            .map_err(|e| AppError::Internal(format!("Error serializando payload: {}", e)))?;
+
+        log::info!("📦 Payload: {}", auth_payload_str);
+
+        // Usar curl (más confiable que reqwest para Colis Privé)
+        let curl_output = std::process::Command::new("curl")
+            .arg("-X")
+            .arg("POST")
+            .arg(&auth_url)
+            .arg("-H")
+            .arg("Accept: application/json, text/plain, */*")
+            .arg("-H")
+            .arg("Accept-Language: fr-FR,fr;q=0.6")
+            .arg("-H")
+            .arg("Connection: keep-alive")
+            .arg("-H")
+            .arg("Content-Type: application/json")
+            .arg("-H")
+            .arg("Origin: https://gestiontournee.colisprive.com")
+            .arg("-H")
+            .arg("Referer: https://gestiontournee.colisprive.com/")
+            .arg("-H")
+            .arg("Sec-Fetch-Dest: empty")
+            .arg("-H")
+            .arg("Sec-Fetch-Mode: cors")
+            .arg("-H")
+            .arg("Sec-Fetch-Site: same-site")
+            .arg("-H")
+            .arg("Sec-GPC: 1")
+            .arg("-H")
+            .arg("User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36")
+            .arg("-H")
+            .arg("sec-ch-ua: \"Chromium\";v=\"141\", \"Not=A?Brand\";v=\"24\", \"Brave\";v=\"141\"")
+            .arg("-H")
+            .arg("sec-ch-ua-mobile: ?0")
+            .arg("-H")
+            .arg("sec-ch-ua-platform: \"macOS\"")
+            .arg("--data-raw")
+            .arg(&auth_payload_str)
+            .arg("--max-time")
+            .arg("30")
+            .arg("--silent")
+            .arg("--show-error")
+            .output()
             .map_err(|e| {
-                log::error!("❌ Error de conexión: {:?}", e);
-                AppError::ExternalApi(format!("Error en request de autenticación: {}", e))
+                log::error!("❌ Error ejecutando curl: {}", e);
+                AppError::ExternalApi(format!("Error ejecutando curl: {}", e))
             })?;
-        
-        log::info!("✅ Respuesta recibida: {}", response.status());
 
-        if !response.status().is_success() {
-            return Err(AppError::Unauthorized(format!("Error de autenticación: {}", response.status())));
+        if !curl_output.status.success() {
+            let error_msg = String::from_utf8_lossy(&curl_output.stderr);
+            log::error!("❌ Curl falló: {}", error_msg);
+            return Err(AppError::ExternalApi(format!("Curl falló: {}", error_msg)));
         }
 
-        let auth_response: AuthApiResponse = response
-            .json()
-            .await
+        let response_body = String::from_utf8_lossy(&curl_output.stdout);
+        log::info!("📥 Respuesta: {}", &response_body[..response_body.len().min(200)]);
+
+        // Parsear la respuesta JSON
+        let json_response: serde_json::Value = serde_json::from_str(&response_body)
             .map_err(|e| AppError::ExternalApi(format!("Error parsing auth response: {}", e)))?;
 
-        if !auth_response.success {
-            return Err(AppError::Unauthorized(
-                auth_response.message.unwrap_or_else(|| "Autenticación fallida".to_string())
-            ));
-        }
+        // Extraer el SsoHopps
+        let sso_token = json_response
+            .get("SsoHopps")
+            .or_else(|| json_response.get("ssoHopps"))
+            .or_else(|| json_response.get("habilitacionAD")
+                .and_then(|h| h.get("SsoHopps"))
+                .and_then(|s| s.as_array())
+                .and_then(|arr| arr.get(0))
+                .and_then(|item| item.get("valeur")))
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| {
+                log::error!("❌ Token no encontrado. Campos disponibles: {:?}", 
+                    json_response.as_object().map(|obj| obj.keys().collect::<Vec<_>>()));
+                AppError::ExternalApi("No SsoHopps in response".to_string())
+            })?
+            .to_string();
 
-        let data = auth_response.data
-            .ok_or_else(|| AppError::ExternalApi("No data in auth response".to_string()))?;
+        let matricule_chauffeur = json_response
+            .get("matriculeChauffeur")
+            .and_then(|v| v.as_str())
+            .unwrap_or(username)
+            .to_string();
+
+        let nom_chauffeur = json_response
+            .get("nomChauffeur")
+            .and_then(|v| v.as_str())
+            .unwrap_or("Chauffeur")
+            .to_string();
+
+        log::info!("✅ Autenticación exitosa - Token obtenido");
 
         // Token expira en 24 horas
         let expires_at = Utc::now() + Duration::hours(24);
 
         Ok(AuthenticationResult {
-            sso_token: data.sso_hopps,
-            matricule_chauffeur: data.matricule_chauffeur,
-            nom_chauffeur: data.nom_chauffeur,
+            sso_token,
+            matricule_chauffeur,
+            nom_chauffeur,
             expires_at,
         })
     }
