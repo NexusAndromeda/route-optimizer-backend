@@ -897,6 +897,7 @@ use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
 #[derive(Serialize, Deserialize)]
+#[derive(Debug)]
 struct ColisPriveOptimizationRequest {
     code_societe: String,
     matricule: String,
@@ -1096,6 +1097,8 @@ pub async fn optimize_tournee(
 async fn get_sso_token_for_matricule(matricule: &str, societe: &str, state: &AppState) -> Result<String, AppError> {
     // Buscar token en el estado de la aplicación
     if let Some(auth_token) = state.get_auth_token(matricule, societe).await {
+        log::info!("🔍 Token encontrado en cache para {}:{}, expira en: {}", societe, matricule, auth_token.expires_at);
+        
         if auth_token.is_expired() {
             log::warn!("⚠️ Token expirado para {}:{}, obteniendo uno fresco", societe, matricule);
             // Intentar autenticación automática
@@ -1127,6 +1130,9 @@ async fn call_colis_prive_optimization(
     sso_token: &str,
 ) -> Result<ColisPriveOptimizationResponse, AppError> {
     let client = reqwest::Client::new();
+    
+    log::info!("🚀 Enviando request de optimización a Colis Privé con token: {}...", &sso_token[..20]);
+    log::info!("📋 Request data: {:?}", request);
     
     let response = client
         .post("https://wstournee-v2.colisprive.com/WS-TourneeColis/api/optimiserTourneeAvecValidation_POST/")
