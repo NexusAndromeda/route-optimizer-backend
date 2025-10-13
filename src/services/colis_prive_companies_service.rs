@@ -101,8 +101,8 @@ impl ColisPriveCompaniesService {
 // Función helper pública para obtener empresas
 pub async fn fetch_all_companies() -> Result<Vec<crate::models::colis_prive_company::ColisPriveCompany>, crate::utils::errors::AppError> {
     let service = ColisPriveCompaniesService::new(
-        std::env::var("COLIS_PRIVE_GESTION_URL")
-            .unwrap_or_else(|_| "https://gestiontournee.colisprive.com".to_string())
+        std::env::var("COLIS_PRIVE_REFERENTIEL_URL")
+            .unwrap_or_else(|_| "https://wsreferentiel-v2.colisprive.com/WS_RefDistributeur/RefDistributeurConsolideExtranetToExterne.svc".to_string())
     );
     
     service.get_companies()
