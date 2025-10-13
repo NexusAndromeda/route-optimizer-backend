@@ -184,12 +184,20 @@ impl ColisPriveService {
             mot_de_passe: password.to_string(),
         };
 
+        log::info!("🔗 Conectando a wsauth.colisprive.com...");
+        
         let response = self.client
             .post("https://wsauth.colisprive.com/WS-AuthColis/api/authColisPriveLogin_POST/")
             .json(&auth_request)
+            .timeout(std::time::Duration::from_secs(30))
             .send()
             .await
-            .map_err(|e| AppError::ExternalApi(format!("Error en request de autenticación: {}", e)))?;
+            .map_err(|e| {
+                log::error!("❌ Error de conexión: {:?}", e);
+                AppError::ExternalApi(format!("Error en request de autenticación: {}", e))
+            })?;
+        
+        log::info!("✅ Respuesta recibida: {}", response.status());
 
         if !response.status().is_success() {
             return Err(AppError::Unauthorized(format!("Error de autenticación: {}", response.status())));

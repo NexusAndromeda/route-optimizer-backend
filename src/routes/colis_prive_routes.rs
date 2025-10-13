@@ -20,10 +20,17 @@ pub fn create_colis_prive_routes() -> Router<AppState> {
 async fn authenticate(
     State(state): State<AppState>,
     Json(request): Json<ColisPriveAuthRequest>,
-) -> Result<Json<ColisPriveAuthResponse>, AppError> {
+) -> Json<ColisPriveAuthResponse> {
     let controller = ColisPriveController::new(&state);
-    let response = controller.authenticate(request).await?;
-    Ok(Json(response))
+    match controller.authenticate(request).await {
+        Ok(response) => Json(response),
+        Err(e) => Json(ColisPriveAuthResponse {
+            success: false,
+            message: None,
+            authentication: None,
+            error: Some(e.to_string()),
+        }),
+    }
 }
 
 async fn get_packages(
