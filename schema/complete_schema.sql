@@ -1,40 +1,37 @@
 -- =====================================================
 -- SCHEMA FINAL SIMPLIFICADO - DELIVERY ROUTING
 -- =====================================================
--- Enfocado en gestión de empresa, vehículos y direcciones
--- con referencias de tournées para organizar datos
+-- Enfocado en gestión de empresa (con admin integrado),
+-- vehículos y direcciones con referencias de tournées
+-- para organizar datos
 
 -- EXTENSIONES
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "postgis";
 
 -- =====================================================
--- 1. COMPANIES
+-- 1. COMPANIES (incluye admin/jefe de empresa)
 -- =====================================================
 CREATE TABLE companies (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name VARCHAR(255) NOT NULL,
     address TEXT NOT NULL,
     siret VARCHAR(14) UNIQUE,
+    
+    -- Admin/Jefe de empresa
+    admin_full_name VARCHAR(255) NOT NULL,
+    admin_email VARCHAR(255) UNIQUE NOT NULL,
+    admin_password_hash VARCHAR(255) NOT NULL,
+    
+    -- Subscription info
     subscription_plan VARCHAR(50) DEFAULT 'basic',
     subscription_status VARCHAR(20) DEFAULT 'active',
+    
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- =====================================================
--- 2. USERS (solo jefes)
--- =====================================================
-CREATE TABLE users (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
-    password_hash VARCHAR(255) NOT NULL,
-    full_name VARCHAR(255) NOT NULL,
-    email VARCHAR(255) UNIQUE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- =====================================================
--- 3. VEHICLES
+-- 2. VEHICLES
 -- =====================================================
 CREATE TABLE vehicles (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -49,7 +46,7 @@ CREATE TABLE vehicles (
 );
 
 -- =====================================================
--- 4. VEHICLE_DOCUMENTS
+-- 3. VEHICLE_DOCUMENTS
 -- =====================================================
 CREATE TABLE vehicle_documents (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -62,7 +59,7 @@ CREATE TABLE vehicle_documents (
 );
 
 -- =====================================================
--- 5. ROUTES (solo para referencias de tournées)
+-- 4. ROUTES (solo para referencias de tournées)
 -- =====================================================
 CREATE TABLE routes (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -72,7 +69,7 @@ CREATE TABLE routes (
 );
 
 -- =====================================================
--- 6. VEHICLE_DAMAGES
+-- 5. VEHICLE_DAMAGES
 -- =====================================================
 CREATE TABLE vehicle_damages (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -86,7 +83,7 @@ CREATE TABLE vehicle_damages (
 );
 
 -- =====================================================
--- 7. ADDRESSES (datos de campo)
+-- 6. ADDRESSES (datos de campo)
 -- =====================================================
 CREATE TABLE addresses (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
