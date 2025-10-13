@@ -4,12 +4,21 @@
 //! requests desde diferentes orígenes.
 
 use axum::http::{HeaderName, HeaderValue, Method};
-use tower_http::cors::{Any, CorsLayer};
+use tower_http::cors::{AllowedOriginList, Any, CorsLayer};
 
 /// Crear middleware de CORS configurado
 pub fn cors_middleware() -> CorsLayer {
+    // Orígenes específicos para desarrollo y producción
+    let allowed_origins = vec![
+        "http://localhost:8080".parse::<HeaderValue>().unwrap(),
+        "http://localhost:8081".parse::<HeaderValue>().unwrap(),
+        "http://127.0.0.1:8080".parse::<HeaderValue>().unwrap(),
+        "http://127.0.0.1:8081".parse::<HeaderValue>().unwrap(),
+        "https://api.delivery.nexuslabs.one".parse::<HeaderValue>().unwrap(),
+    ];
+
     CorsLayer::new()
-        .allow_origin(Any)
+        .allow_origin(AllowedOriginList::from(allowed_origins))
         .allow_methods([
             Method::GET,
             Method::POST,
@@ -25,7 +34,7 @@ pub fn cors_middleware() -> CorsLayer {
             HeaderName::from_static("origin"),
             HeaderName::from_static("x-requested-with"),
         ])
-        .allow_credentials(false) // Cambiado a false para permitir Any origin
+        .allow_credentials(false)
         .max_age(std::time::Duration::from_secs(3600))
 }
 
