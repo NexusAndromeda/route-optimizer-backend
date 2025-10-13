@@ -6,7 +6,6 @@ pub mod colis_prive;
 pub mod colis_prive_router;
 pub mod geocoding;
 pub mod hybrid;
-pub mod update;
 pub mod auth;
 
 pub use colis_prive_router::*;
@@ -20,6 +19,5 @@ pub fn create_api_router() -> Router<AppState> {
         .nest("/colis-prive", create_colis_prive_router())
         .nest("/api", geocoding::create_geocoding_router())
         .merge(hybrid::create_router())
-        .merge(update::create_update_router())
         .merge(auth::create_auth_router())
 }

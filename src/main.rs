@@ -25,6 +25,7 @@ use serde_json::json;
 use config::environment::EnvironmentConfig;
 use state::*;
 use database::DatabaseConnection;
+use middleware::cors::cors_middleware;
 
 use cache::redis_client::RedisClient;
 
@@ -81,12 +82,9 @@ async fn main() -> Result<()> {
         .route("/colis-prive/companies", get(api::colis_prive::get_companies))
         .route("/colis-prive/packages-test", get(api::colis_prive::test_packages_endpoint))
         .route("/colis-prive/packages", post(api::colis_prive::get_packages))
-        .route("/mobile/check-update", post(api::update::check_for_updates))
-        .route("/mobile/download/apk", get(api::update::download_apk))
-        .route("/mobile/test-download", get(api::update::test_download))
-        .route("/mobile/server-version", get(api::update::get_server_version))
         // migration endpoints eliminados - código legacy
         .merge(api::create_api_router())
+        .layer(cors_middleware())
         .with_state(app_state);
 
     // Puerto del servidor

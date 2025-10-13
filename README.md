@@ -59,10 +59,10 @@ cargo build --release
 ### Paquetes y Rutas
 - `GET /api/colis-prive/packages` - Obtener paquetes del día
 - `POST /api/colis-prive/optimize` - Optimizar ruta con Colis Privé
-- `POST /api/colis-prive/reorder` - Reordenar paquetes manualmente
 
 ### Sistema
 - `GET /api/health` - Estado del sistema
+- `GET /api/colis-prive/companies` - Lista de empresas disponibles
 - `GET /api/analytics` - Métricas y estadísticas
 
 ## 🔒 Configuración
