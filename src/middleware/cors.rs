@@ -4,12 +4,12 @@
 //! requests desde diferentes orígenes.
 
 use axum::http::{HeaderName, HeaderValue, Method};
-use tower_http::cors::{AllowedOriginList, Any, CorsLayer};
+use tower_http::cors::{Any, CorsLayer};
 
 /// Crear middleware de CORS configurado
 pub fn cors_middleware() -> CorsLayer {
     // Orígenes específicos para desarrollo y producción
-    let allowed_origins = vec![
+    let allowed_origins = [
         "http://localhost:8080".parse::<HeaderValue>().unwrap(),
         "http://localhost:8081".parse::<HeaderValue>().unwrap(),
         "http://127.0.0.1:8080".parse::<HeaderValue>().unwrap(),
@@ -18,7 +18,7 @@ pub fn cors_middleware() -> CorsLayer {
     ];
 
     CorsLayer::new()
-        .allow_origin(AllowedOriginList::from(allowed_origins))
+        .allow_origin(allowed_origins)
         .allow_methods([
             Method::GET,
             Method::POST,
