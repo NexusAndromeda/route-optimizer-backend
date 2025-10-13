@@ -4,7 +4,7 @@
 //! requests desde diferentes orígenes.
 
 use axum::http::{HeaderName, HeaderValue, Method};
-use tower_http::cors::{Any, CorsLayer};
+use tower_http::cors::CorsLayer;
 
 /// Crear middleware de CORS configurado para desarrollo
 /// NOTA: Permite cualquier origen - solo para desarrollo

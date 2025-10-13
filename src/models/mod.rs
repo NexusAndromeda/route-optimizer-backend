@@ -2,7 +2,6 @@
 //! 
 //! Este módulo contiene los modelos de datos para la aplicación.
 
-pub mod user;
 pub mod company;
 pub mod vehicle;
 pub mod route;
