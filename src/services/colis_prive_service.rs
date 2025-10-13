@@ -257,22 +257,26 @@ impl ColisPriveService {
         let json_response: serde_json::Value = serde_json::from_str(&response_body)
             .map_err(|e| AppError::ExternalApi(format!("Error parsing auth response: {}", e)))?;
 
-        // Extraer el SsoHopps
+        // Extraer el token - puede estar en varios lugares
         let sso_token = json_response
-            .get("SsoHopps")
+            .get("shortToken")
+            .or_else(|| json_response.get("SsoHopps"))
             .or_else(|| json_response.get("ssoHopps"))
-            .or_else(|| json_response.get("habilitacionAD")
-                .and_then(|h| h.get("SsoHopps"))
-                .and_then(|s| s.as_array())
+            .or_else(|| json_response.get("tokens")
+                .and_then(|t| t.get("SsoHopps")))
+            .or_else(|| json_response.get("habilitationAD")
+                .and_then(|h| h.as_array())
                 .and_then(|arr| arr.get(0))
                 .and_then(|item| item.get("valeur")))
             .and_then(|v| v.as_str())
             .ok_or_else(|| {
                 log::error!("❌ Token no encontrado. Campos disponibles: {:?}", 
                     json_response.as_object().map(|obj| obj.keys().collect::<Vec<_>>()));
-                AppError::ExternalApi("No SsoHopps in response".to_string())
+                AppError::ExternalApi("Token no encontrado en response".to_string())
             })?
             .to_string();
+        
+        log::info!("✅ Token extraído: {}...", &sso_token[..20.min(sso_token.len())]);
 
         let matricule_chauffeur = json_response
             .get("matriculeChauffeur")
