@@ -459,43 +459,76 @@ impl ColisPriveService {
             "coordY": null,
         });
 
-        log::info!("🚀 Enviando request de optimización a Colis Privé con token: {}...", &sso_token[..20]);
-        log::info!("📋 Request data: {:?}", optimize_request);
+        let optimize_payload = serde_json::to_string(&optimize_request)
+            .map_err(|e| AppError::ExternalApi(format!("Error serializing optimize request: {}", e)))?;
 
-        let response = self.client
-            .post("https://wstournee-v2.colisprive.com/WS-TourneeColis/api/optimiserTourneeAvecValidation_POST/")
-            .header("SsoHopps", sso_token)
-            .header("Content-Type", "application/json")
-            .header("Accept", "application/json, text/plain, */*")
-            .header("Accept-Language", "fr-FR,fr;q=0.6")
-            .header("Connection", "keep-alive")
-            .header("Origin", "https://gestiontournee.colisprive.com")
-            .header("Referer", "https://gestiontournee.colisprive.com/")
-            .header("Sec-Fetch-Dest", "empty")
-            .header("Sec-Fetch-Mode", "cors")
-            .header("Sec-Fetch-Site", "same-site")
-            .header("Sec-GPC", "1")
-            .header("sec-ch-ua", r#""Brave";v="141", "Not?A_Brand";v="8", "Chromium";v="141""#)
-            .header("sec-ch-ua-mobile", "?0")
-            .header("sec-ch-ua-platform", r#""macOS""#)
-            .header("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36")
-            .json(&optimize_request)
-            .timeout(std::time::Duration::from_secs(90))
-            .send()
-            .await
-            .map_err(|e| AppError::ExternalApi(format!("Error llamando API Colis Privé: {}", e)))?;
+        log::info!("🚀 Enviando request de optimización a Colis Privé con token: {}...", &sso_token[..20.min(sso_token.len())]);
+        log::info!("📋 Request data: {}", optimize_payload);
 
-        if !response.status().is_success() {
-            let status = response.status();
-            let error_text = response.text().await.unwrap_or_default();
-            log::error!("❌ Error en optimización: {} - {}", status, error_text);
-            return Err(AppError::ExternalApi(format!("API Colis Privé retornó error: {}", status)));
+        let optimize_url = "https://wstournee-v2.colisprive.com/WS-TourneeColis/api/optimiserTourneeAvecValidation_POST/";
+
+        // Usar curl (más confiable que reqwest para Colis Privé)
+        let curl_output = std::process::Command::new("curl")
+            .arg("-X")
+            .arg("POST")
+            .arg(optimize_url)
+            .arg("-H")
+            .arg("Accept: application/json, text/plain, */*")
+            .arg("-H")
+            .arg("Accept-Language: fr-FR,fr;q=0.6")
+            .arg("-H")
+            .arg("Connection: keep-alive")
+            .arg("-H")
+            .arg("Content-Type: application/json")
+            .arg("-H")
+            .arg(format!("SsoHopps: {}", sso_token))
+            .arg("-H")
+            .arg("Origin: https://gestiontournee.colisprive.com")
+            .arg("-H")
+            .arg("Referer: https://gestiontournee.colisprive.com/")
+            .arg("-H")
+            .arg("Sec-Fetch-Dest: empty")
+            .arg("-H")
+            .arg("Sec-Fetch-Mode: cors")
+            .arg("-H")
+            .arg("Sec-Fetch-Site: same-site")
+            .arg("-H")
+            .arg("Sec-GPC: 1")
+            .arg("-H")
+            .arg("User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36")
+            .arg("-H")
+            .arg("sec-ch-ua: \"Chromium\";v=\"141\", \"Not=A?Brand\";v=\"24\", \"Brave\";v=\"141\"")
+            .arg("-H")
+            .arg("sec-ch-ua-mobile: ?0")
+            .arg("-H")
+            .arg("sec-ch-ua-platform: \"macOS\"")
+            .arg("--data-raw")
+            .arg(&optimize_payload)
+            .arg("--max-time")
+            .arg("90")
+            .arg("--silent")
+            .arg("--show-error")
+            .output()
+            .map_err(|e| {
+                log::error!("❌ Error ejecutando curl: {}", e);
+                AppError::ExternalApi(format!("Error ejecutando curl: {}", e))
+            })?;
+
+        if !curl_output.status.success() {
+            let error_msg = String::from_utf8_lossy(&curl_output.stderr);
+            log::error!("❌ Curl falló: {}", error_msg);
+            return Err(AppError::ExternalApi(format!("Curl falló: {}", error_msg)));
         }
 
-        let optimize_response: TourneeApiResponse = response
-            .json()
-            .await
-            .map_err(|e| AppError::ExternalApi(format!("Error parsing optimize response: {}", e)))?;
+        let response_body = String::from_utf8_lossy(&curl_output.stdout);
+        log::info!("📥 Respuesta optimización recibida: {} bytes", response_body.len());
+
+        let optimize_response: TourneeApiResponse = serde_json::from_str(&response_body)
+            .map_err(|e| {
+                log::error!("❌ Error parsing optimize response: {}", e);
+                log::error!("📄 Response body: {}", &response_body[..response_body.len().min(500)]);
+                AppError::ExternalApi(format!("Error parsing optimize response: {}", e))
+            })?;
 
         if !optimize_response.success {
             return Err(AppError::ExternalApi("Optimization request failed".to_string()));
