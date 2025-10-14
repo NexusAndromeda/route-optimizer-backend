@@ -434,7 +434,7 @@ impl ColisPriveService {
                     recipient_name: Some(nom.clone()),
                     address: Some(format!("{}, {} {}", addr1, cp, ville)),
                     status: package.get("codeStatutArticle").and_then(|v| v.as_str()).map(|s| s.to_string()),
-                    instructions: package.get("PreferenceLivraison").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                    instructions: None, // No mapear instrucciones para evitar deformación del card
                     phone: package.get("telephoneMobileDestinataire").and_then(|v| v.as_str()).map(|s| s.to_string()),
                     phone_fixed: package.get("telephoneFixeDestinataire").and_then(|v| v.as_str()).map(|s| s.to_string()),
                     email: package.get("emailDestinataire").and_then(|v| v.as_str()).map(|s| s.to_string()),
