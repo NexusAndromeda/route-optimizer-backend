@@ -15,6 +15,7 @@ pub fn create_address_router() -> Router<AppState> {
     Router::new()
         .route("/", post(save_address))
         .route("/search", get(search_addresses))
+        .route("/geocode", post(geocode_address))
         .route("/:id", get(get_address))
         .route("/:id", put(update_address_details))
         .route("/:id", delete(delete_address))
@@ -55,6 +56,20 @@ async fn search_addresses(
     let controller = AddressController::new(state.pool.clone());
     let response = controller.search(request).await?;
     Ok(Json(response))
+}
+
+async fn geocode_address(
+    State(state): State<AppState>,
+    Json(request): Json<GeocodeRequest>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let controller = AddressController::new(state.pool.clone());
+    let response = controller.geocode_address(request.address).await?;
+    Ok(Json(response))
+}
+
+#[derive(Debug, Deserialize)]
+struct GeocodeRequest {
+    address: String,
 }
 
 #[derive(Debug, Deserialize)]

@@ -1,6 +1,7 @@
 use crate::dto::address_dto::{SaveAddressRequest, AddressResponse, SearchAddressRequest};
 use crate::dto::company_dto::ApiResponse;
 use crate::repositories::address_repository::AddressRepository;
+use crate::services::geocoding_service::GeocodingService;
 use crate::utils::errors::AppError;
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -150,5 +151,50 @@ impl AddressController {
     pub async fn delete(&self, id: Uuid) -> Result<(), AppError> {
         self.repository.delete(id).await?;
         Ok(())
+    }
+
+    /// Geocodificar una dirección usando Mapbox
+    pub async fn geocode_address(&self, address: String) -> Result<ApiResponse<serde_json::Value>, AppError> {
+        if address.trim().is_empty() {
+            return Err(AppError::ValidationError("La dirección es requerida".to_string()));
+        }
+
+        log::info!("🌍 Geocodificando dirección: {}", address);
+
+        // Crear servicio de geocodificación (necesita token de Mapbox)
+        let mapbox_token = std::env::var("MAPBOX_ACCESS_TOKEN")
+            .map_err(|_| AppError::Internal("MAPBOX_ACCESS_TOKEN no configurado".to_string()))?;
+        let geocoding_service = GeocodingService::new(mapbox_token);
+        
+        // Geocodificar
+        match geocoding_service.geocode_address(&address).await {
+            Ok(response) => {
+                if response.success {
+                    log::info!("✅ Geocodificación exitosa: {} -> ({}, {})", 
+                        address, 
+                        response.latitude.unwrap_or(0.0), 
+                        response.longitude.unwrap_or(0.0)
+                    );
+                    
+                    let result = serde_json::json!({
+                        "success": true,
+                        "latitude": response.latitude,
+                        "longitude": response.longitude,
+                        "formatted_address": response.formatted_address,
+                        "message": "Dirección geocodificada exitosamente"
+                    });
+                    
+                    Ok(ApiResponse::success_with_message(result, "Geocodificación exitosa".to_string()))
+                } else {
+                    let error_msg = response.message.clone().unwrap_or_default();
+                    log::warn!("⚠️ Geocodificación falló: {}", error_msg);
+                    Err(AppError::ValidationError(error_msg))
+                }
+            }
+            Err(e) => {
+                log::error!("❌ Error en geocodificación: {}", e);
+                Err(AppError::Internal(format!("Error en geocodificación: {}", e)))
+            }
+        }
     }
 }
