@@ -50,9 +50,41 @@ pub struct MapboxOptions {
     pub objectives: Option<Vec<String>>,
 }
 
-/// Response de Mapbox Optimization API
+/// Response de Mapbox Optimization API v1
 #[derive(Debug, Deserialize)]
 pub struct MapboxOptimizationResponse {
+    pub code: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub waypoints: Option<Vec<MapboxWaypointV1>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub trips: Option<Vec<MapboxTripV1>>,
+}
+
+/// Waypoint en la respuesta v1
+#[derive(Debug, Deserialize)]
+pub struct MapboxWaypointV1 {
+    pub waypoint_index: usize,
+    pub trips_index: usize,
+    pub name: String,
+    pub location: Vec<f64>,
+}
+
+/// Trip en la respuesta v1
+#[derive(Debug, Deserialize)]
+pub struct MapboxTripV1 {
+    pub geometry: serde_json::Value,
+    pub legs: Vec<serde_json::Value>,
+    pub weight_name: String,
+    pub weight: f64,
+    pub duration: f64,
+    pub distance: f64,
+}
+
+/// Response de Mapbox Optimization API v2 (Beta)
+#[derive(Debug, Deserialize)]
+pub struct MapboxOptimizationV2Response {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dropped: Option<MapboxDropped>,
     pub routes: Vec<MapboxRoute>,

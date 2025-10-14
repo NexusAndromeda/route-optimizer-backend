@@ -86,7 +86,7 @@ async fn main() -> Result<()> {
         .nest("/api/vehicle", routes::vehicle_routes::create_vehicle_router())
         .nest("/api/address", routes::address_routes::create_address_router())
         .nest("/api/colis-prive", routes::colis_prive_routes::create_colis_prive_routes())
-        .nest("/api/mapbox-optimization", routes::mapbox_optimization_routes::create_mapbox_optimization_routes())
+        // .nest("/api/mapbox-optimization", routes::mapbox_optimization_routes::create_mapbox_optimization_routes()) // Deshabilitado hasta tener acceso a v2 Beta
         // Endpoints legacy (geocoding, hybrid)
         .merge(api::create_legacy_api_router())
         .layer(cors_middleware())

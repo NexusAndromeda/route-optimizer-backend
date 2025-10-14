@@ -423,8 +423,8 @@ impl ColisPriveService {
                     destinataire_adresse2: None,
                     destinataire_cp: Some(cp.clone()),
                     destinataire_ville: Some(ville.clone()),
-                    coord_x_destinataire: package.get("coordXOrigineDestinataire").and_then(|v| v.as_f64()),
-                    coord_y_destinataire: package.get("coordYOrigineDestinataire").and_then(|v| v.as_f64()),
+                    coord_x_destinataire: package.get("coordXDestinataire").and_then(|v| v.as_f64()),
+                    coord_y_destinataire: package.get("coordYDestinataire").and_then(|v| v.as_f64()),
                     statut: package.get("codeStatutArticle").and_then(|v| v.as_str()).map(|s| s.to_string()),
                     numero_ordre: package.get("numeroOrdre").and_then(|v| v.as_i64()).map(|n| n as i32),
                     

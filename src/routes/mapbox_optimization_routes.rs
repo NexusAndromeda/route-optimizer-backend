@@ -18,3 +18,4 @@ pub fn create_mapbox_optimization_routes() -> Router<AppState> {
         .route("/health", get(mapbox_optimization_controller::health_check))
         .route("/info", get(mapbox_optimization_controller::service_info))
 }
+
