@@ -140,23 +140,22 @@ struct OptimizationApiResponse {
 struct LieuArticle {
     #[serde(rename = "numeroOrdre")]
     numero_ordre: Option<i32>,
-    #[serde(rename = "referenceColis")]
-    reference_colis: Option<String>,
-    #[serde(rename = "destinataireNom")]
-    destinataire_nom: Option<String>,
-    #[serde(rename = "destinataireAdresse1")]
-    destinataire_adresse1: Option<String>,
-    #[serde(rename = "destinataireAdresse2")]
-    destinataire_adresse2: Option<String>,
-    #[serde(rename = "destinataireCp")]
-    destinataire_cp: Option<String>,
-    #[serde(rename = "destinataireVille")]
-    destinataire_ville: Option<String>,
+    #[serde(rename = "refExterneArticle")]
+    ref_externe_article: Option<String>,
+    #[serde(rename = "nomDestinataire")]
+    nom_destinataire: Option<String>,
+    #[serde(rename = "LibelleVoieOrigineDestinataire")]
+    libelle_voie_origine_destinataire: Option<String>,
+    #[serde(rename = "codePostalOrigineDestinataire")]
+    code_postal_origine_destinataire: Option<String>,
+    #[serde(rename = "LibelleLocaliteOrigineDestinataire")]
+    libelle_localite_origine_destinataire: Option<String>,
     #[serde(rename = "coordXDestinataire")]
     coord_x_destinataire: Option<f64>,
     #[serde(rename = "coordYDestinataire")]
     coord_y_destinataire: Option<f64>,
-    statut: Option<String>,
+    #[serde(rename = "codeStatutArticle")]
+    code_statut_article: Option<String>,
 }
 
 pub struct ColisPriveService {
@@ -578,36 +577,37 @@ impl ColisPriveService {
         let packages: Vec<colis_prive_dto::PackageData> = optimize_response.lst_lieu_article
             .into_iter()
             .map(|lieu| {
-                let ref_colis = lieu.reference_colis.clone().unwrap_or_default();
-                let nom = lieu.destinataire_nom.clone().unwrap_or_default();
-                let addr1 = lieu.destinataire_adresse1.clone().unwrap_or_default();
-                let ville = lieu.destinataire_ville.clone().unwrap_or_default();
+                let ref_colis = lieu.ref_externe_article.clone().unwrap_or_default();
+                let nom = lieu.nom_destinataire.clone().unwrap_or_default();
+                let addr1 = lieu.libelle_voie_origine_destinataire.clone().unwrap_or_default();
+                let cp = lieu.code_postal_origine_destinataire.clone().unwrap_or_default();
+                let ville = lieu.libelle_localite_origine_destinataire.clone().unwrap_or_default();
                 
                 colis_prive_dto::PackageData {
                     // Campos principales
                     reference_colis: ref_colis.clone(),
                     destinataire_nom: nom.clone(),
-                    destinataire_adresse1: lieu.destinataire_adresse1.clone(),
-                    destinataire_adresse2: lieu.destinataire_adresse2.clone(),
-                    destinataire_cp: lieu.destinataire_cp.clone(),
-                    destinataire_ville: lieu.destinataire_ville.clone(),
+                    destinataire_adresse1: Some(addr1.clone()),
+                    destinataire_adresse2: None,
+                    destinataire_cp: Some(cp.clone()),
+                    destinataire_ville: Some(ville.clone()),
                     coord_x_destinataire: lieu.coord_x_destinataire,
                     coord_y_destinataire: lieu.coord_y_destinataire,
-                    statut: lieu.statut.clone(),
+                    statut: lieu.code_statut_article.clone(),
                     numero_ordre: lieu.numero_ordre,
                     
                     // Campos legacy
                     id: Some(ref_colis.clone()),
-                    tracking_number: Some(ref_colis),
-                    recipient_name: Some(nom),
-                    address: Some(format!("{} {}", addr1, ville)),
-                    status: lieu.statut.clone(),
+                    tracking_number: Some(ref_colis.clone()),
+                    recipient_name: Some(nom.clone()),
+                    address: Some(format!("{}, {}, {}", addr1, cp, ville)),
+                    status: lieu.code_statut_article.clone(),
                     instructions: None,
                     phone: None,
                     priority: None,
                     latitude: lieu.coord_y_destinataire,
                     longitude: lieu.coord_x_destinataire,
-                    formatted_address: Some(format!("{} {}", addr1, ville)),
+                    formatted_address: Some(format!("{}, {}, {}", addr1, cp, ville)),
                     validation_method: None,
                     validation_confidence: None,
                     validation_warnings: None,
