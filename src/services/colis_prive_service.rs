@@ -449,14 +449,23 @@ impl ColisPriveService {
         matricule: &str,
         societe: &str,
     ) -> Result<OptimizationResult, AppError> {
-        let date_str = Utc::now().format("%Y-%m-%d").to_string();
+        let now = Utc::now();
+        let date_str = now.format("%Y-%m-%d").to_string();
+        let datetime_iso = now.to_rfc3339();
 
+        // Usar exactamente el mismo formato que la página oficial
         let optimize_request = serde_json::json!({
-            "codeSociete": societe,
-            "matricule": matricule,
-            "dateHeureDebut": format!("{}T00:00:00", date_str),
-            "coordX": null,
-            "coordY": null,
+            "CodeSociete": societe,
+            "Matricule": matricule,
+            "DateHeureDebut": datetime_iso,
+            "CoordX": null,
+            "CoordY": null,
+            "CoordRetourX": null,
+            "CoordRetourY": null,
+            "CodeTournee": format!("{}-{}", matricule, now.format("%Y%m%d")),
+            "IsModeOptimToutCPConfondus": false,
+            "PauseHeureDebut": null,
+            "PauseDuree": null
         });
 
         let optimize_payload = serde_json::to_string(&optimize_request)
@@ -523,7 +532,22 @@ impl ColisPriveService {
         let response_body = String::from_utf8_lossy(&curl_output.stdout);
         log::info!("📥 Respuesta optimización recibida: {} bytes", response_body.len());
 
-        let optimize_response: TourneeApiResponse = serde_json::from_str(&response_body)
+        // Primero intentar parsear como JSON genérico para detectar errores
+        let json_value: serde_json::Value = serde_json::from_str(&response_body)
+            .map_err(|e| {
+                log::error!("❌ Error parsing JSON response: {}", e);
+                log::error!("📄 Response body: {}", &response_body[..response_body.len().min(500)]);
+                AppError::ExternalApi(format!("Error parsing JSON response: {}", e))
+            })?;
+
+        // Verificar si hay un mensaje de error
+        if let Some(error_msg) = json_value.get("Message").and_then(|m| m.as_str()) {
+            log::error!("❌ Error de Colis Privé: {}", error_msg);
+            return Err(AppError::ExternalApi(format!("Colis Privé error: {}", error_msg)));
+        }
+
+        // Intentar parsear como respuesta normal
+        let optimize_response: TourneeApiResponse = serde_json::from_value(json_value)
             .map_err(|e| {
                 log::error!("❌ Error parsing optimize response: {}", e);
                 log::error!("📄 Response body: {}", &response_body[..response_body.len().min(500)]);
