@@ -162,8 +162,8 @@ impl AddressController {
         log::info!("🌍 Geocodificando dirección: {}", address);
 
         // Crear servicio de geocodificación (necesita token de Mapbox)
-        let mapbox_token = std::env::var("MAPBOX_ACCESS_TOKEN")
-            .map_err(|_| AppError::Internal("MAPBOX_ACCESS_TOKEN no configurado".to_string()))?;
+        let mapbox_token = std::env::var("MAPBOX_TOKEN")
+            .map_err(|_| AppError::Internal("MAPBOX_TOKEN no configurado".to_string()))?;
         let geocoding_service = GeocodingService::new(mapbox_token);
         
         // Geocodificar
