@@ -125,6 +125,17 @@ struct TourneeApiData {
     lst_lieu_article: Vec<LieuArticle>,
 }
 
+// Estructura específica para la respuesta de optimización
+#[derive(Debug, Deserialize)]
+struct OptimizationApiResponse {
+    #[serde(rename = "MatriculeChauffeur")]
+    matricule_chauffeur: String,
+    #[serde(rename = "DateTournee")]
+    date_tournee: String,
+    #[serde(rename = "LstLieuArticle")]
+    lst_lieu_article: Vec<LieuArticle>,
+}
+
 #[derive(Debug, Deserialize)]
 struct LieuArticle {
     #[serde(rename = "numeroOrdre")]
@@ -553,23 +564,18 @@ impl ColisPriveService {
             return Err(AppError::ExternalApi(format!("Colis Privé error: {}", error_msg)));
         }
 
-        // Intentar parsear como respuesta normal
-        let optimize_response: TourneeApiResponse = serde_json::from_value(json_value)
+        // Intentar parsear como respuesta de optimización (estructura diferente)
+        let optimize_response: OptimizationApiResponse = serde_json::from_value(json_value)
             .map_err(|e| {
                 log::error!("❌ Error parsing optimize response: {}", e);
                 log::error!("📄 Response body: {}", &response_body[..response_body.len().min(500)]);
                 AppError::ExternalApi(format!("Error parsing optimize response: {}", e))
             })?;
 
-        if !optimize_response.success {
-            return Err(AppError::ExternalApi("Optimization request failed".to_string()));
-        }
-
-        let data = optimize_response.data
-            .ok_or_else(|| AppError::ExternalApi("No data in optimization response".to_string()))?;
+        log::info!("✅ Optimización exitosa para: {}", optimize_response.matricule_chauffeur);
 
         // Convertir a PackageData
-        let packages: Vec<colis_prive_dto::PackageData> = data.lst_lieu_article
+        let packages: Vec<colis_prive_dto::PackageData> = optimize_response.lst_lieu_article
             .into_iter()
             .map(|lieu| {
                 let ref_colis = lieu.reference_colis.clone().unwrap_or_default();
@@ -611,8 +617,8 @@ impl ColisPriveService {
             .collect();
 
         Ok(OptimizationResult {
-            matricule_chauffeur: matricule.to_string(),
-            date_tournee: date_str,
+            matricule_chauffeur: optimize_response.matricule_chauffeur,
+            date_tournee: optimize_response.date_tournee,
             packages,
         })
     }
