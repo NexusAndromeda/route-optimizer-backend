@@ -453,16 +453,23 @@ impl ColisPriveService {
         let date_str = now.format("%Y-%m-%d").to_string();
         let datetime_iso = now.to_rfc3339();
 
+        // Construir matricule completo (SOCIETE_MATRICULE)
+        let full_matricule = if matricule.contains('_') {
+            matricule.to_string()
+        } else {
+            format!("{}_{}", societe, matricule)
+        };
+
         // Usar exactamente el mismo formato que la página oficial
         let optimize_request = serde_json::json!({
             "CodeSociete": societe,
-            "Matricule": matricule,
+            "Matricule": full_matricule,
             "DateHeureDebut": datetime_iso,
             "CoordX": null,
             "CoordY": null,
             "CoordRetourX": null,
             "CoordRetourY": null,
-            "CodeTournee": format!("{}-{}", matricule, now.format("%Y%m%d")),
+            "CodeTournee": format!("{}-{}", full_matricule, now.format("%Y%m%d")),
             "IsModeOptimToutCPConfondus": false,
             "PauseHeureDebut": null,
             "PauseDuree": null
