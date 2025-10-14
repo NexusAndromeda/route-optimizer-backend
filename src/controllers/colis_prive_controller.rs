@@ -2,6 +2,7 @@ use crate::dto::colis_prive_dto::*;
 use crate::repositories::colis_prive_repository::ColisPriveRepository;
 use crate::services::colis_prive_service::ColisPriveService;
 use crate::services::colis_prive_companies_service;
+use crate::services::geocoding_service::GeocodingService;
 use crate::utils::errors::AppError;
 use crate::state::AppState;
 
@@ -96,7 +97,7 @@ impl ColisPriveController {
         }
 
         // Llamar al servicio para obtener paquetes
-        let packages = self.service.get_tournee(
+        let mut packages = self.service.get_tournee(
             &token.token,
             &request.matricule,
             &request.societe,
@@ -105,6 +106,74 @@ impl ColisPriveController {
 
         let total = packages.len();
         log::info!("✅ Paquetes obtenidos: {}", total);
+
+        // 🗺️ Geocoding automático de paquetes
+        log::info!("🗺️ Iniciando geocoding automático de {} paquetes...", packages.len());
+        
+        // Verificar que tengamos el token de Mapbox
+        let mapbox_token = state.config.mapbox_token.clone()
+            .ok_or_else(|| AppError::ExternalApi("Mapbox token no configurado".to_string()))?;
+        
+        let geocoding_service = GeocodingService::new(mapbox_token);
+
+        let mut geocoded_count = 0;
+        let mut already_geocoded = 0;
+
+        for package in &mut packages {
+            // Si ya tiene coordenadas de Colis Privé, usarlas
+            if package.coord_x_destinataire.is_some() && package.coord_y_destinataire.is_some() {
+                package.latitude = package.coord_y_destinataire;
+                package.longitude = package.coord_x_destinataire;
+                already_geocoded += 1;
+                continue;
+            }
+
+            // Construir dirección completa
+            let mut address_parts = Vec::new();
+            
+            if let Some(addr1) = &package.destinataire_adresse1 {
+                address_parts.push(addr1.clone());
+            }
+            if let Some(addr2) = &package.destinataire_adresse2 {
+                if !addr2.trim().is_empty() {
+                    address_parts.push(addr2.clone());
+                }
+            }
+            if let Some(cp) = &package.destinataire_cp {
+                address_parts.push(cp.clone());
+            }
+            if let Some(ville) = &package.destinataire_ville {
+                address_parts.push(ville.clone());
+            }
+
+            let full_address = address_parts.join(", ");
+            
+            if full_address.is_empty() {
+                log::warn!("⚠️ Paquete {} sin dirección válida", package.reference_colis);
+                continue;
+            }
+
+            // Hacer geocoding
+            match geocoding_service.geocode_address(&full_address).await {
+                Ok(geo_result) if geo_result.success => {
+                    package.latitude = geo_result.latitude;
+                    package.longitude = geo_result.longitude;
+                    package.formatted_address = geo_result.formatted_address;
+                    package.validation_method = Some("geocoded".to_string());
+                    package.validation_confidence = Some(0.9); // Alta confianza para Mapbox
+                    geocoded_count += 1;
+                }
+                Ok(_) => {
+                    log::warn!("⚠️ No se pudo geocodificar: {}", full_address);
+                }
+                Err(e) => {
+                    log::error!("❌ Error geocodificando {}: {}", full_address, e);
+                }
+            }
+        }
+
+        log::info!("✅ Geocoding completado: {} nuevos, {} ya existentes, {} total", 
+            geocoded_count, already_geocoded, packages.len());
 
         Ok(PackagesResponse {
             success: true,
