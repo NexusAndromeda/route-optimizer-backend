@@ -76,6 +76,10 @@ pub struct PackageData {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub phone: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub phone_fixed: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub email: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub priority: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub latitude: Option<f64>,
