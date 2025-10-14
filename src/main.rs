@@ -86,6 +86,7 @@ async fn main() -> Result<()> {
         .nest("/api/vehicle", routes::vehicle_routes::create_vehicle_router())
         .nest("/api/address", routes::address_routes::create_address_router())
         .nest("/api/colis-prive", routes::colis_prive_routes::create_colis_prive_routes())
+        .nest("/api/mapbox-optimization", routes::mapbox_optimization_routes::create_mapbox_optimization_routes())
         // Endpoints legacy (geocoding, hybrid)
         .merge(api::create_legacy_api_router())
         .layer(cors_middleware())
@@ -118,9 +119,13 @@ async fn main() -> Result<()> {
     info!("📦 Endpoints MVC - Colis Privé:");
     info!("   POST /api/colis-prive/auth - Autenticación");
     info!("   POST /api/colis-prive/packages - Obtener paquetes");
-    info!("   POST /api/colis-prive/optimize - Optimizar ruta");
+    info!("   POST /api/colis-prive/optimize - Optimizar ruta (Colis Privé)");
     info!("   GET  /api/colis-prive/companies - Listar empresas");
     info!("   GET  /api/colis-prive/health - Health check");
+    info!("🗺️ Endpoints MVC - Mapbox Optimization:");
+    info!("   POST /api/mapbox-optimization/optimize - Optimizar ruta (Mapbox)");
+    info!("   GET  /api/mapbox-optimization/health - Health check");
+    info!("   GET  /api/mapbox-optimization/info - Información del servicio");
     info!("🔧 Endpoints Legacy:");
     info!("   POST /api/geocoding - Geocodificación Mapbox");
 

@@ -6,4 +6,5 @@ pub mod colis_prive_service;
 pub mod colis_prive_companies_service;
 pub mod geocoding_service;
 pub mod address_validation;
+pub mod mapbox_optimization_service;
 // pub mod hybrid_processor; // Comentado - legacy, necesita refactoring
