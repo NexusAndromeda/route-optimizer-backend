@@ -2,47 +2,50 @@ use axum::{
     extract::{State, Path},
     http::StatusCode,
     response::Json,
-    routing::{get, put},
+    routing::{get, put, post},
     Router,
 };
 use std::sync::Arc;
 use serde::Deserialize;
 use crate::services::package_processing_service::PackageProcessingService;
 use crate::services::address_matching_service::AddressMatchingService;
-use crate::services::colis_prive_service::ColisPriveService;
+use crate::controllers::colis_prive_controller::ColisPriveController;
+use crate::dto::colis_prive_dto::GetPackagesRequest;
 use crate::models::package::GroupedPackages;
 use crate::state::AppState;
+use crate::utils::errors::AppError;
 use tracing::{info, error};
 use uuid::Uuid;
 
-/// Obtiene paquetes agrupados para una empresa
+/// Obtiene paquetes agrupados de Colis Privé
 pub async fn get_grouped_packages(
     State(app_state): State<AppState>,
+    Json(request): Json<GetPackagesRequest>,
 ) -> Result<Json<GroupedPackages>, (StatusCode, Json<serde_json::Value>)> {
-    info!("📦 Solicitud de paquetes agrupados recibida");
+    info!("📦 Solicitud de paquetes agrupados recibida para: {}:{}", 
+        request.societe, request.matricule);
     
-    // Por ahora, usar un company_id fijo para testing
-    let company_id = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000")
-        .map_err(|_| {
-            error!("❌ Error parseando company_id");
-            (StatusCode::BAD_REQUEST, Json(serde_json::json!({
-                "error": "Invalid company ID"
-            })))
-        })?;
+    // 1. Obtener paquetes de Colis Privé usando el controller existente
+    let controller = ColisPriveController::new(&app_state);
+    let packages_response = match controller.get_packages(request, &app_state).await {
+        Ok(response) => response,
+        Err(e) => {
+            error!("❌ Error obteniendo paquetes de Colis Privé: {}", e);
+            return Err((StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({
+                "error": "Error obteniendo paquetes de Colis Privé",
+                "details": e.to_string()
+            }))));
+        }
+    };
     
-    // Obtener paquetes de Colis Privé
-    let colis_service = ColisPriveService::new(app_state.http_client.clone(), app_state.config.clone());
-    
-    // Por ahora, retornamos una lista vacía de paquetes
-    // Se implementará cuando tengamos la integración real
-    let colis_packages: Vec<crate::models::package::ColisPrivePackage> = vec![];
-    
-    if colis_packages.is_empty() {
-        info!("📭 No hay paquetes disponibles para la empresa (mock)");
+    // 2. Convertir paquetes de Colis Privé al formato que necesitamos
+    // Por ahora, si no hay paquetes, retornar vacío
+    if packages_response.packages.is_empty() {
+        info!("📭 No hay paquetes disponibles");
         return Ok(Json(GroupedPackages::new()));
     }
     
-    info!("📦 {} paquetes obtenidos de Colis Privé", colis_packages.len());
+    info!("📦 {} paquetes obtenidos de Colis Privé", packages_response.packages.len());
     
     // Crear servicios de procesamiento
     let address_matcher = match AddressMatchingService::new(Arc::new(app_state.pool.clone())).await {
@@ -58,8 +61,41 @@ pub async fn get_grouped_packages(
     
     let package_processor = PackageProcessingService::new(address_matcher);
     
+    // 3. Convertir PackageData de Colis Privé a ColisPrivePackage
+    let colis_packages: Vec<crate::models::package::ColisPrivePackage> = packages_response.packages
+        .into_iter()
+        .filter_map(|pkg| {
+            // Extraer coordenadas
+            let latitude = pkg.coord_y_destinataire.or(pkg.latitude).unwrap_or(48.8566); // Default París
+            let longitude = pkg.coord_x_destinataire.or(pkg.longitude).unwrap_or(2.3522);
+            
+            // Extraer dirección
+            let libelle_voie = pkg.destinataire_adresse1.clone().unwrap_or_default();
+            let code_postal = pkg.destinataire_cp.clone().unwrap_or_default();
+            
+            // Si no tiene coordenadas válidas o dirección, lo ignoramos
+            if libelle_voie.is_empty() || code_postal.is_empty() {
+                return None;
+            }
+            
+            Some(crate::models::package::ColisPrivePackage {
+                code_barre_article: pkg.reference_colis.clone(),
+                destinataire_nom: pkg.destinataire_nom.clone(),
+                destinataire_telephone: pkg.phone.or(pkg.phone_fixed),
+                destinataire_indication: pkg.instructions.clone(),
+                num_voie_geocode_livraison: None, // Extraer si está disponible
+                libelle_voie_geocode_livraison: libelle_voie,
+                code_postal_geocode_livraison: code_postal,
+                latitude,
+                longitude,
+            })
+        })
+        .collect();
+    
+    info!("📦 {} paquetes válidos para procesar", colis_packages.len());
+    
     // Procesar y agrupar paquetes
-    let grouped_packages = match package_processor.process_tournee(colis_packages, Some(company_id)).await {
+    let grouped_packages = match package_processor.process_tournee(colis_packages, None).await {
         Ok(grouped) => grouped,
         Err(e) => {
             error!("❌ Error procesando paquetes: {}", e);
@@ -158,7 +194,7 @@ pub async fn update_address_driver_data(
 /// Configura las rutas de paquetes
 pub fn package_routes() -> Router<AppState> {
     Router::new()
-        .route("/packages/grouped", get(get_grouped_packages))
+        .route("/packages/grouped", post(get_grouped_packages))
         .route("/packages/stats", get(get_processing_stats))
         .route("/addresses/:address_id/driver-data", put(update_address_driver_data))
 }
