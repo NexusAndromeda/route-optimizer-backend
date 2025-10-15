@@ -6,3 +6,5 @@ pub mod company;
 pub mod vehicle;
 pub mod route;
 pub mod colis_prive_company;
+pub mod address;
+pub mod package;

@@ -83,16 +83,32 @@ CREATE TABLE vehicle_damages (
 );
 
 -- =====================================================
--- 6. ADDRESSES (datos de campo)
+-- 6. ADDRESSES (datos de campo - NUEVA ESTRUCTURA)
 -- =====================================================
 CREATE TABLE addresses (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    route_id UUID NOT NULL REFERENCES routes(id) ON DELETE CASCADE,
-    address TEXT NOT NULL,
-    postal_code VARCHAR(20),
-    coordinates GEOMETRY(Point, 4326),
-    door_codes TEXT,
-    mailbox_access BOOLEAN DEFAULT FALSE,
-    access_instructions TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    company_id UUID REFERENCES companies(id) ON DELETE CASCADE,
+    
+    -- Datos oficiales de la API francesa
+    official_label TEXT NOT NULL UNIQUE,        -- "4 Rue Gaston Tissandier 75018 Paris"
+    street_name VARCHAR(255) NOT NULL,          -- "Rue Gaston Tissandier"
+    street_number VARCHAR(20),                  -- "4"
+    postcode VARCHAR(20) NOT NULL,              -- "75018"
+    city VARCHAR(100) NOT NULL,                 -- "Paris"
+    coordinates GEOMETRY(Point, 4326) NOT NULL,
+    
+    -- Datos del chofer (compartidos para esta dirección)
+    door_code TEXT,                             -- Código de puerta del edificio
+    has_mailbox_access BOOLEAN DEFAULT FALSE,   -- Acceso a buzón
+    driver_notes TEXT,                          -- "Apto 12: buzón bloqueado"
+    
+    -- Metadata
+    last_updated_by VARCHAR(100),               -- Matricule del chofer que actualizó
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    
+    -- Índices para búsqueda rápida
+    INDEX idx_street_postcode (street_name, postcode),
+    INDEX idx_coordinates (coordinates),
+    INDEX idx_postcode (postcode)
 );
