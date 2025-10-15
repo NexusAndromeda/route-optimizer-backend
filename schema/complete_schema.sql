@@ -105,10 +105,10 @@ CREATE TABLE addresses (
     -- Metadata
     last_updated_by VARCHAR(100),               -- Matricule del chofer que actualizó
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    
-    -- Índices para búsqueda rápida
-    INDEX idx_street_postcode (street_name, postcode),
-    INDEX idx_coordinates (coordinates),
-    INDEX idx_postcode (postcode)
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- Índices para búsqueda rápida en tabla addresses
+CREATE INDEX idx_addresses_street_postcode ON addresses(street_name, postcode);
+CREATE INDEX idx_addresses_coordinates ON addresses USING GIST(coordinates);
+CREATE INDEX idx_addresses_postcode ON addresses(postcode);
