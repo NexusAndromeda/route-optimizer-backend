@@ -27,13 +27,13 @@ impl MapboxOptimizationService {
         }
     }
 
-    /// Optimizar una ruta usando Mapbox Optimization API v1
+    /// Optimizar una ruta usando Mapbox Optimization API v2 (Beta)
     pub async fn optimize_route(
         &self,
         packages: Vec<OptimizationPackage>,
         warehouse_location: Option<(f64, f64)>, // (longitude, latitude)
     ) -> Result<OptimizationResponse> {
-        log::info!("🚀 Iniciando optimización con Mapbox v1 para {} paquetes", packages.len());
+        log::info!("🚀 Iniciando optimización con Mapbox v2 para {} paquetes", packages.len());
 
         // Validar que tenemos paquetes con coordenadas
         let packages_with_coords: Vec<_> = packages.iter()
@@ -48,55 +48,40 @@ impl MapboxOptimizationService {
             });
         }
 
-        // API v1 tiene límite de 12 coordenadas
-        if packages_with_coords.len() > 11 {
-            log::warn!("⚠️ API v1 limita a 12 coordenadas, usando solo las primeras 11 paquetes");
+        // API v2 soporta hasta 1000 locations
+        if packages_with_coords.len() > 1000 {
+            log::warn!("⚠️ API v2 limita a 1000 locations, usando solo las primeras 1000");
         }
 
-        let packages_to_optimize = packages_with_coords.iter().take(11).collect::<Vec<_>>();
+        let packages_to_optimize: Vec<_> = packages_with_coords.iter().take(1000).cloned().collect();
         log::info!("📍 Optimizando {} paquetes con coordenadas válidas", packages_to_optimize.len());
 
-        // Construir coordenadas para la URL
-        let mut coordinates = Vec::new();
+        // Construir routing problem document para v2
+        let routing_problem = self.build_routing_problem_v2(&packages_to_optimize, warehouse_location)?;
 
-        // Agregar warehouse como punto de inicio si se proporciona
-        if let Some((lon, lat)) = warehouse_location {
-            coordinates.push(format!("{},{}", lon, lat));
-        }
+        log::info!("📋 Enviando routing problem a Mapbox Optimization API v2");
 
-        // Agregar coordenadas de paquetes
-        for package in &packages_to_optimize {
-            let lon = package.coord_x_destinataire.unwrap();
-            let lat = package.coord_y_destinataire.unwrap();
-            coordinates.push(format!("{},{}", lon, lat));
-        }
-
-        // Si no hay warehouse, el primer paquete será el punto de inicio
-        if warehouse_location.is_none() && !coordinates.is_empty() {
-            // Mover la primera coordenada al final para hacer round trip
-            let first_coord = coordinates.remove(0);
-            coordinates.push(first_coord);
-        }
-
-        let coordinates_str = coordinates.join(";");
-
-        log::info!("📋 Enviando request a Mapbox Optimization API v1");
-
-        // Llamar a la API v1
-        let solution = self.call_optimization_v1(&coordinates_str).await?;
+        // Paso 1: Enviar el problema (POST)
+        let submit_response = self.submit_routing_problem_v2(&routing_problem).await?;
+        let job_id = submit_response.id;
         
-        log::info!("🎯 Solución obtenida de Mapbox v1");
+        log::info!("📤 Routing problem enviado, job_id: {}", job_id);
 
-        // Procesar la solución y convertir a nuestro formato
-        let optimized_packages = self.process_solution_v1(&solution, packages_to_optimize).await?;
+        // Paso 2: Polling para obtener la solución (GET)
+        let solution = self.poll_solution_v2(&job_id).await?;
+        
+        log::info!("🎯 Solución obtenida de Mapbox v2");
+
+        // Paso 3: Procesar la solución y convertir a nuestro formato
+        let optimized_packages = self.process_solution_v2(&solution, &packages_to_optimize)?;
 
         log::info!("✅ Optimización completada: {} paquetes optimizados", optimized_packages.len());
 
         Ok(OptimizationResponse {
             success: true,
-            message: Some("Ruta optimizada exitosamente con Mapbox v1".to_string()),
+            message: Some("Ruta optimizada exitosamente con Mapbox v2".to_string()),
             data: Some(OptimizationData {
-                matricule_chauffeur: None, // No aplica para Mapbox
+                matricule_chauffeur: None,
                 date_tournee: Some(Utc::now().to_rfc3339()),
                 optimized_packages,
             }),
@@ -248,6 +233,212 @@ impl MapboxOptimizationService {
             }
         }
 
+        Ok(optimized_packages)
+    }
+
+    /// Construir routing problem document para v2
+    fn build_routing_problem_v2(
+        &self,
+        packages: &[OptimizationPackage],
+        warehouse_location: Option<(f64, f64)>,
+    ) -> Result<MapboxOptimizationRequest> {
+        let mut locations = Vec::new();
+        let mut services = Vec::new();
+
+        // Agregar warehouse como location si existe
+        if let Some((lon, lat)) = warehouse_location {
+            locations.push(MapboxLocation {
+                name: "warehouse".to_string(),
+                coordinates: [lon, lat],
+            });
+        } else if let Some(first_pkg) = packages.first() {
+            // Si no hay warehouse, usar el primer paquete como inicio
+            locations.push(MapboxLocation {
+                name: "start".to_string(),
+                coordinates: [
+                    first_pkg.coord_x_destinataire.unwrap(),
+                    first_pkg.coord_y_destinataire.unwrap(),
+                ],
+            });
+        }
+
+        // Agregar cada paquete como location y service
+        for (idx, pkg) in packages.iter().enumerate() {
+            let location_name = format!("delivery-{}", idx);
+            
+            locations.push(MapboxLocation {
+                name: location_name.clone(),
+                coordinates: [
+                    pkg.coord_x_destinataire.unwrap(),
+                    pkg.coord_y_destinataire.unwrap(),
+                ],
+            });
+
+            services.push(MapboxService {
+                name: format!("service-{}", idx),
+                location: location_name,
+                duration: 120, // 2 minutos por entrega (ajustable)
+                size: None,
+            });
+        }
+
+        // Crear vehículo
+        let start_location = if warehouse_location.is_some() {
+            "warehouse".to_string()
+        } else {
+            "start".to_string()
+        };
+
+        let vehicles = vec![MapboxVehicle {
+            name: "vehicle-1".to_string(),
+            start_location: start_location.clone(),
+            end_location: start_location, // Round trip
+            capacity: None,
+        }];
+
+        // Opciones de optimización
+        let options = Some(MapboxOptions {
+            objectives: Some(vec!["min-schedule-completion-time".to_string()]),
+        });
+
+        Ok(MapboxOptimizationRequest {
+            version: 1,
+            locations,
+            vehicles,
+            services,
+            options,
+        })
+    }
+
+    /// Enviar routing problem a Mapbox v2 (POST)
+    async fn submit_routing_problem_v2(
+        &self,
+        routing_problem: &MapboxOptimizationRequest,
+    ) -> Result<MapboxSubmitResponse> {
+        let url = format!(
+            "https://api.mapbox.com/optimized-trips/v2?access_token={}",
+            self.mapbox_token
+        );
+
+        log::info!("📤 POST a: {}", url);
+
+        let response = self.client
+            .post(&url)
+            .json(routing_problem)
+            .header("Content-Type", "application/json")
+            .header("User-Agent", "RouteOptimizer/1.0")
+            .send()
+            .await?;
+
+        let status = response.status();
+        
+        if status.as_u16() != 202 {
+            let error_text = response.text().await?;
+            return Err(anyhow!("Mapbox v2 submit error {}: {}", status, error_text));
+        }
+
+        let submit_response: MapboxSubmitResponse = response.json().await?;
+        log::info!("✅ Submitted successfully, status: {}", submit_response.status);
+
+        Ok(submit_response)
+    }
+
+    /// Polling para obtener la solución v2 (GET)
+    async fn poll_solution_v2(&self, job_id: &str) -> Result<MapboxOptimizationV2Response> {
+        let url = format!(
+            "https://api.mapbox.com/optimized-trips/v2/{}?access_token={}",
+            job_id, self.mapbox_token
+        );
+
+        let max_attempts = 30; // 30 intentos
+        let poll_interval = std::time::Duration::from_secs(2); // 2 segundos entre intentos
+
+        for attempt in 1..=max_attempts {
+            log::info!("🔍 Polling intento {}/{}: {}", attempt, max_attempts, url);
+
+            let response = self.client
+                .get(&url)
+                .header("User-Agent", "RouteOptimizer/1.0")
+                .send()
+                .await?;
+
+            let status = response.status();
+
+            if status.as_u16() == 202 {
+                // Aún procesando
+                log::info!("⏳ Solución aún procesando, esperando {} segundos...", poll_interval.as_secs());
+                tokio::time::sleep(poll_interval).await;
+                continue;
+            }
+
+            if status.as_u16() == 200 {
+                // Solución lista
+                let solution: MapboxOptimizationV2Response = response.json().await?;
+                log::info!("✅ Solución lista después de {} intentos", attempt);
+                return Ok(solution);
+            }
+
+            // Otro error
+            let error_text = response.text().await?;
+            return Err(anyhow!("Mapbox v2 poll error {}: {}", status, error_text));
+        }
+
+        Err(anyhow!("Timeout esperando solución después de {} intentos", max_attempts))
+    }
+
+    /// Procesar solución v2 y convertir a nuestro formato
+    fn process_solution_v2(
+        &self,
+        solution: &MapboxOptimizationV2Response,
+        packages: &[OptimizationPackage],
+    ) -> Result<Vec<OptimizedPackage>> {
+        let mut optimized_packages = Vec::new();
+
+        // Verificar si hay servicios dropped
+        if let Some(dropped) = &solution.dropped {
+            if let Some(services) = &dropped.services {
+                if !services.is_empty() {
+                    log::warn!("⚠️ {} servicios no pudieron ser incluidos en la solución", services.len());
+                }
+            }
+        }
+
+        // Obtener la primera ruta (asumimos un solo vehículo)
+        let route = solution.routes.first()
+            .ok_or_else(|| anyhow!("No hay rutas en la solución"))?;
+
+        log::info!("📍 Procesando ruta con {} stops", route.stops.len());
+
+        // Procesar cada stop de tipo "service"
+        let mut order = 1;
+        for stop in &route.stops {
+            if stop.stop_type == "service" {
+                if let Some(service_names) = &stop.services {
+                    for service_name in service_names {
+                        // Extraer el índice del nombre del servicio (ej: "service-0" → 0)
+                        if let Some(idx_str) = service_name.strip_prefix("service-") {
+                            if let Ok(pkg_idx) = idx_str.parse::<usize>() {
+                                if let Some(pkg) = packages.get(pkg_idx) {
+                                    let mut optimized_pkg = OptimizedPackage::from(pkg.clone());
+                                    optimized_pkg.numero_ordre = Some(order);
+                                    optimized_pkg.num_ordre_passage_prevu = Some(order);
+                                    optimized_pkg.eta = Some(stop.eta.clone());
+                                    
+                                    optimized_packages.push(optimized_pkg);
+                                    order += 1;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if optimized_packages.is_empty() {
+            return Err(anyhow!("No se pudieron extraer paquetes optimizados de la solución"));
+        }
+
+        log::info!("✅ {} paquetes procesados de la solución v2", optimized_packages.len());
         Ok(optimized_packages)
     }
 }
