@@ -597,6 +597,7 @@ impl ColisPriveService {
                     coord_x_destinataire: lieu.coord_x_destinataire,
                     coord_y_destinataire: lieu.coord_y_destinataire,
                     statut: lieu.code_statut_article.clone(),
+                    code_statut_article: lieu.code_statut_article.clone(),
                     numero_ordre: lieu.numero_ordre,
                     
                     // Campos legacy
