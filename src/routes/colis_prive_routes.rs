@@ -89,6 +89,7 @@ async fn get_packages(
                 code_postal_geocode_livraison: code_postal,
                 latitude,
                 longitude,
+                code_statut_article: pkg.code_statut_article,
             })
         })
         .collect();

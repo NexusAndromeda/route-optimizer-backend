@@ -88,6 +88,7 @@ pub async fn get_grouped_packages(
                 code_postal_geocode_livraison: code_postal,
                 latitude,
                 longitude,
+                code_statut_article: None, // No disponible en formato mock
             })
         })
         .collect();

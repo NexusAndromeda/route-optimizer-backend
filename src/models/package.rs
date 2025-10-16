@@ -14,6 +14,7 @@ pub struct ColisPrivePackage {
     pub code_postal_geocode_livraison: String,
     pub latitude: f64,
     pub longitude: f64,
+    pub code_statut_article: Option<String>,
 }
 
 /// Paquete procesado con datos oficiales
@@ -30,6 +31,7 @@ pub struct ProcessedPackage {
     pub mailbox_access: bool,
     pub driver_notes: String,
     pub address_id: Option<Uuid>,
+    pub code_statut_article: Option<String>,
 }
 
 /// Información de paquete para grupos
@@ -75,6 +77,7 @@ pub struct SinglePackage {
     pub mailbox_access: bool,
     pub driver_notes: String,
     pub address_id: Option<Uuid>,
+    pub code_statut_article: Option<String>,
 }
 
 /// Respuesta estructurada con paquetes agrupados
@@ -145,6 +148,7 @@ impl From<ColisPrivePackage> for ProcessedPackage {
             mailbox_access: false,
             driver_notes: String::new(),
             address_id: None,
+            code_statut_article: colis.code_statut_article,
         }
     }
 }
@@ -163,6 +167,7 @@ impl From<ProcessedPackage> for SinglePackage {
             mailbox_access: processed.mailbox_access,
             driver_notes: processed.driver_notes,
             address_id: processed.address_id,
+            code_statut_article: processed.code_statut_article,
         }
     }
 }
