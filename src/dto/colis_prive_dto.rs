@@ -58,6 +58,7 @@ pub struct PackageData {
     pub coord_x_destinataire: Option<f64>,
     pub coord_y_destinataire: Option<f64>,
     pub statut: Option<String>,
+    pub code_statut_article: Option<String>,
     pub numero_ordre: Option<i32>,
     
     // Campos legacy para compatibilidad
