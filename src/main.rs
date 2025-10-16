@@ -82,11 +82,11 @@ async fn main() -> Result<()> {
     let app = Router::new()
         .route("/test", get(test_endpoint))
         // Nuevas rutas MVC
-        .nest("/api/company", routes::company_routes::create_company_router())
-        .nest("/api/vehicle", routes::vehicle_routes::create_vehicle_router())
-        .nest("/api/address", routes::address_routes::create_address_router())
-        .nest("/api/colis-prive", routes::colis_prive_routes::create_colis_prive_routes())
-        .nest("/api", routes::package_routes::package_routes())
+        .nest("/company", routes::company_routes::create_company_router())
+        .nest("/vehicle", routes::vehicle_routes::create_vehicle_router())
+        .nest("/address", routes::address_routes::create_address_router())
+        .nest("/colis-prive", routes::colis_prive_routes::create_colis_prive_routes())
+        .nest("/", routes::package_routes::package_routes())
         // .nest("/api/mapbox-optimization", routes::mapbox_optimization_routes::create_mapbox_optimization_routes()) // Deshabilitado hasta tener acceso a v2 Beta
         // Endpoints legacy (geocoding, hybrid)
         .merge(api::create_legacy_api_router())
@@ -101,36 +101,36 @@ async fn main() -> Result<()> {
     info!("🔍 Endpoints disponibles:");
     info!("   GET  /test - Endpoint de prueba");
     info!("🏢 Endpoints MVC - Company:");
-    info!("   POST /api/company/register - Registrar empresa");
-    info!("   POST /api/company/login - Login empresa");
-    info!("   GET  /api/company/me - Obtener empresa actual");
+    info!("   POST /company/register - Registrar empresa");
+    info!("   POST /company/login - Login empresa");
+    info!("   GET  /company/me - Obtener empresa actual");
     info!("🚗 Endpoints MVC - Vehicle:");
-    info!("   POST /api/vehicle - Crear vehículo");
-    info!("   GET  /api/vehicle - Listar vehículos");
-    info!("   GET  /api/vehicle/:id - Obtener vehículo");
-    info!("   PUT  /api/vehicle/:id - Actualizar vehículo");
-    info!("   DELETE /api/vehicle/:id - Eliminar vehículo");
+    info!("   POST /vehicle - Crear vehículo");
+    info!("   GET  /vehicle - Listar vehículos");
+    info!("   GET  /vehicle/:id - Obtener vehículo");
+    info!("   PUT  /vehicle/:id - Actualizar vehículo");
+    info!("   DELETE /vehicle/:id - Eliminar vehículo");
     info!("📍 Endpoints MVC - Address:");
-    info!("   POST /api/address - Guardar dirección");
-    info!("   GET  /api/address/search - Buscar direcciones");
-    info!("   GET  /api/address/:id - Obtener dirección");
-    info!("   PUT  /api/address/:id - Actualizar código/BAL");
-    info!("   DELETE /api/address/:id - Eliminar dirección");
-    info!("   GET  /api/address/route/:route_id - Direcciones por ruta");
+    info!("   POST /address - Guardar dirección");
+    info!("   GET  /address/search - Buscar direcciones");
+    info!("   GET  /address/:id - Obtener dirección");
+    info!("   PUT  /address/:id - Actualizar código/BAL");
+    info!("   DELETE /address/:id - Eliminar dirección");
+    info!("   GET  /address/route/:route_id - Direcciones por ruta");
     info!("📦 Endpoints MVC - Colis Privé:");
-    info!("   POST /api/colis-prive/auth - Autenticación");
-    info!("   POST /api/colis-prive/packages - Obtener paquetes");
-    info!("   POST /api/colis-prive/optimize - Optimizar ruta (Colis Privé)");
-    info!("   GET  /api/colis-prive/companies - Listar empresas");
-    info!("   GET  /api/colis-prive/health - Health check");
+    info!("   POST /colis-prive/auth - Autenticación");
+    info!("   POST /colis-prive/packages - Obtener paquetes");
+    info!("   POST /colis-prive/optimize - Optimizar ruta (Colis Privé)");
+    info!("   GET  /colis-prive/companies - Listar empresas");
+    info!("   GET  /colis-prive/health - Health check");
     info!("📦 Endpoints MVC - Packages:");
-    info!("   GET  /api/packages/grouped - Obtener paquetes agrupados");
-    info!("   GET  /api/packages/stats - Estadísticas de procesamiento");
-    info!("   PUT  /api/addresses/:id/driver-data - Actualizar datos del chofer");
+    info!("   GET  /packages/grouped - Obtener paquetes agrupados");
+    info!("   GET  /packages/stats - Estadísticas de procesamiento");
+    info!("   PUT  /addresses/:id/driver-data - Actualizar datos del chofer");
     info!("🗺️ Endpoints MVC - Mapbox Optimization:");
-    info!("   POST /api/mapbox-optimization/optimize - Optimizar ruta (Mapbox)");
-    info!("   GET  /api/mapbox-optimization/health - Health check");
-    info!("   GET  /api/mapbox-optimization/info - Información del servicio");
+    info!("   POST /mapbox-optimization/optimize - Optimizar ruta (Mapbox)");
+    info!("   GET  /mapbox-optimization/health - Health check");
+    info!("   GET  /mapbox-optimization/info - Información del servicio");
     info!("🔧 Endpoints Legacy:");
     info!("   POST /api/geocoding - Geocodificación Mapbox");
 
