@@ -78,3 +78,6 @@ futures = "0.3"
 
 # Regex para validación de direcciones
 regex = "1.10"
+
+# MD5 para checksums de caché
+md5 = "0.7"

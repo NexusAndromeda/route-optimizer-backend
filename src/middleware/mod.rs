@@ -4,3 +4,4 @@
 
 // pub mod auth; // Comentado temporalmente - migrar a MVC
 pub mod cors;
+pub mod auth_middleware;
