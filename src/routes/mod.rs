@@ -6,5 +6,6 @@ pub mod package_routes;
 pub mod auth_routes;
 pub mod authorization_routes;
 pub mod tournee_cache_routes;
+pub mod tournee_sync_routes;
 // pub mod mapbox_optimization_routes; // Deshabilitado hasta tener acceso a Mapbox v2 Beta
 

@@ -175,6 +175,39 @@ impl ColisPriveController {
         log::info!("✅ Geocoding completado: {} nuevos, {} ya existentes, {} total", 
             geocoded_count, already_geocoded, packages.len());
 
+        // 🔄 Aplicar estado guardado de la tournée (paquetes problemáticos, coordenadas actualizadas)
+        let tournee_id = request.matricule.clone();
+        if let Ok(Some(saved_state)) = Self::get_saved_tournee_state(&state.redis, &tournee_id).await {
+            log::info!("🔄 Aplicando estado guardado de tournée: v{}, {} problemáticos, {} coords actualizadas",
+                saved_state.version, 
+                saved_state.problematic_packages.len(), 
+                saved_state.updated_coords.len()
+            );
+            
+            // Aplicar paquetes problemáticos
+            for pkg in &mut packages {
+                if saved_state.problematic_packages.contains(&pkg.reference_colis) {
+                    // Marcar como problemático removiendo coordenadas
+                    pkg.latitude = None;
+                    pkg.longitude = None;
+                    log::info!("⚠️ Paquete {} marcado como problemático desde estado guardado", pkg.reference_colis);
+                }
+            }
+            
+            // Aplicar coordenadas actualizadas por el chofer
+            for coords in &saved_state.updated_coords {
+                if let Some(pkg) = packages.iter_mut().find(|p| p.reference_colis == coords.package_id) {
+                    pkg.latitude = Some(coords.lat);
+                    pkg.longitude = Some(coords.lng);
+                    // Actualizar dirección si es diferente
+                    if !coords.address.is_empty() {
+                        pkg.destinataire_adresse1 = Some(coords.address.clone());
+                    }
+                    log::info!("📍 Coordenadas actualizadas para {} desde estado guardado", coords.package_id);
+                }
+            }
+        }
+
         Ok(PackagesResponse {
             success: true,
             packages,
@@ -243,4 +276,31 @@ impl ColisPriveController {
             companies: company_list,
         })
     }
+
+    // Helper para obtener estado guardado de la tournée
+    async fn get_saved_tournee_state(
+        redis: &crate::cache::redis_client::RedisClient,
+        tournee_id: &str,
+    ) -> Result<Option<TourneeStateData>, AppError> {
+        let cache_key = format!("tournee_state:{}", tournee_id);
+        
+        redis.get::<TourneeStateData>(&cache_key)
+            .await
+            .map_err(|e| AppError::ExternalApi(format!("Error obteniendo estado: {}", e)))
+    }
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+struct TourneeStateData {
+    version: u32,
+    problematic_packages: Vec<String>,
+    updated_coords: Vec<SavedPackageCoords>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+struct SavedPackageCoords {
+    package_id: String,
+    lat: f64,
+    lng: f64,
+    address: String,
 }

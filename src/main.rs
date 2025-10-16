@@ -77,7 +77,10 @@ async fn main() -> Result<()> {
     };
 
     // Crear router de la API
-    let app_state = AppState::new(pool, EnvironmentConfig::default(), redis_client);
+    let app_state = AppState::new(pool, EnvironmentConfig::default(), redis_client.clone());
+    
+    // Crear estado para rutas de sincronización (usa solo Redis)
+    let sync_state = std::sync::Arc::new(tokio::sync::Mutex::new(redis_client));
     
     let app = Router::new()
         .route("/test", get(test_endpoint))
@@ -87,6 +90,8 @@ async fn main() -> Result<()> {
         .nest("/address", routes::address_routes::create_address_router())
         .nest("/colis-prive", routes::colis_prive_routes::create_colis_prive_routes())
         .nest("/", routes::package_routes::package_routes())
+        // Rut de sincronización usa su propio estado
+        .merge(routes::tournee_sync_routes::tournee_sync_routes().with_state(sync_state))
         // .nest("/api/mapbox-optimization", routes::mapbox_optimization_routes::create_mapbox_optimization_routes()) // Deshabilitado hasta tener acceso a v2 Beta
         // Endpoints legacy (geocoding, hybrid)
         .merge(api::create_legacy_api_router())
