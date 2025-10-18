@@ -126,8 +126,9 @@ impl PackageProcessingService {
             phone_number: colis_package.destinataire_telephone,
             customer_indication: colis_package.destinataire_indication,
             official_label: official_label.clone(),
-            latitude: colis_package.latitude,
-            longitude: colis_package.longitude,
+            // Si es problemático, no enviar coordenadas (no aparecerá en mapa)
+            latitude: if is_problematic { 0.0 } else { colis_package.latitude },
+            longitude: if is_problematic { 0.0 } else { colis_package.longitude },
             mailbox_access: false,
             driver_notes: String::new(),
             address_id: None,
