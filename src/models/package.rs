@@ -130,8 +130,14 @@ impl GroupedPackages {
     }
     
     pub fn finalize(&mut self) {
-        // Ordenar singles por tracking
-        self.singles.sort_by(|a, b| a.tracking.cmp(&b.tracking));
+        // Ordenar singles: primero los normales, luego los problemáticos
+        self.singles.sort_by(|a, b| {
+            match (a.is_problematic, b.is_problematic) {
+                (true, false) => std::cmp::Ordering::Greater,  // a (problemático) va después
+                (false, true) => std::cmp::Ordering::Less,     // a (normal) va antes
+                _ => a.tracking.cmp(&b.tracking),              // mismo tipo, ordenar por tracking
+            }
+        });
         
         // Ordenar groups por official_label
         self.groups.sort_by(|a, b| a.official_label.cmp(&b.official_label));
