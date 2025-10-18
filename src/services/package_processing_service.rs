@@ -91,20 +91,31 @@ impl PackageProcessingService {
             (libelle, cp, None, true)
         };
         
-        // PASO 2: Extraer número si está incluido en libelle
-        let numero_final = if let Some(num) = num_voie {
-            num
+        // PASO 2: Extraer número y limpiar libelle
+        let (numero_final, libelle_limpio) = if let Some(num) = num_voie {
+            // Si tiene número separado, quitar el número del libelle si está duplicado
+            let libelle_sin_numero = if let Some(captures) = regex::Regex::new(r"^(\d+[A-Z]?)\s+(.+)").unwrap().captures(&libelle_voie) {
+                // El número está en el libelle, extraer solo la calle
+                captures.get(2).map(|m| m.as_str().to_string()).unwrap_or(libelle_voie.clone())
+            } else {
+                libelle_voie.clone()
+            };
+            (num, libelle_sin_numero)
         } else if let Some(captures) = regex::Regex::new(r"^(\d+[A-Z]?)\s+(.+)").unwrap().captures(&libelle_voie) {
-            captures.get(1).map(|m| m.as_str().to_string()).unwrap_or_default()
+            // No tiene número separado, pero está en el libelle
+            let num = captures.get(1).map(|m| m.as_str().to_string()).unwrap_or_default();
+            let calle = captures.get(2).map(|m| m.as_str().to_string()).unwrap_or(libelle_voie.clone());
+            (num, calle)
         } else {
-            String::new()
+            // No tiene número ni separado ni en libelle
+            (String::new(), libelle_voie.clone())
         };
         
         // PASO 3: Construir official_label
         let official_label = if !numero_final.is_empty() {
-            format!("{} {} {}", numero_final, libelle_voie, code_postal)
+            format!("{} {} {}", numero_final, libelle_limpio, code_postal)
         } else {
-            format!("{} {}", libelle_voie, code_postal)
+            format!("{} {}", libelle_limpio, code_postal)
         }.trim().to_string();
         
         // PASO 4: Crear ProcessedPackage
@@ -128,7 +139,7 @@ impl PackageProcessingService {
         if !is_problematic {
             let colis_addr = ColisPriveAddress {
                 num_voie: Some(numero_final.clone()).filter(|s| !s.is_empty()),
-                libelle_voie: libelle_voie.clone(),
+                libelle_voie: libelle_limpio.clone(),
                 code_postal: code_postal.clone(),
                 latitude: colis_package.latitude,
                 longitude: colis_package.longitude,
@@ -152,7 +163,7 @@ impl PackageProcessingService {
             None => {
                 // ❌ NO MATCH - crear nueva dirección en BD
                 match self.address_matcher.create_address_if_not_exists(
-                    libelle_voie.clone(),
+                    libelle_limpio.clone(),
                     code_postal.clone(),
                     "Paris".to_string(),
                     processed.latitude,
