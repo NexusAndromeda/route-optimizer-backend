@@ -260,6 +260,8 @@ impl PackageProcessingService {
                     id: pkg.id,
                     tracking: pkg.tracking,
                     customer_indication: pkg.customer_indication,
+                    code_statut_article: pkg.code_statut_article,
+                    is_problematic: pkg.is_problematic,
                 })
                 .collect();
             

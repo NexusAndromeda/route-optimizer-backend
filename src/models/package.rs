@@ -57,6 +57,8 @@ pub struct PackageInfo {
     pub id: Uuid,
     pub tracking: String,
     pub customer_indication: Option<String>,
+    pub code_statut_article: Option<String>,
+    pub is_problematic: bool,
 }
 
 /// Grupo de paquetes por cliente
