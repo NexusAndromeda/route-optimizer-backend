@@ -410,6 +410,7 @@ impl ColisPriveService {
                 }
                 
                 let ref_colis = package.get("refExterneArticle")?.as_str()?.to_string();
+                let code_barre = package.get("codeBarreArticle")?.as_str()?.to_string();
                 let nom = package.get("nomDestinataire")?.as_str()?.to_string();
                 let addr1 = package.get("LibelleVoieOrigineDestinataire")?.as_str()?.to_string();
                 let cp = package.get("codePostalOrigineDestinataire")?.as_str()?.to_string();
@@ -417,7 +418,7 @@ impl ColisPriveService {
                 
                 Some(colis_prive_dto::PackageData {
                     // Campos principales
-                    reference_colis: ref_colis.clone(),
+                    reference_colis: code_barre.clone(),
                     destinataire_nom: nom.clone(),
                     destinataire_adresse1: Some(addr1.clone()),
                     destinataire_adresse2: None,
@@ -441,7 +442,7 @@ impl ColisPriveService {
                     
                     // Campos legacy
                     id: Some(package.get("idArticle")?.as_str()?.to_string()),
-                    tracking_number: Some(ref_colis.clone()),
+                    tracking_number: Some(code_barre.clone()),
                     recipient_name: Some(nom.clone()),
                     address: Some(format!("{}, {} {}", addr1, cp, ville)),
                     status: package.get("codeStatutArticle").and_then(|v| v.as_str()).map(|s| s.to_string()),
