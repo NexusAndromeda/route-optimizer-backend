@@ -63,19 +63,79 @@ impl PackageProcessingService {
         colis_package: ColisPrivePackage,
         company_id: Option<Uuid>
     ) -> Result<ProcessedPackage> {
-        let mut processed = ProcessedPackage::from(colis_package.clone());
+        let tracking = colis_package.code_barre_article.clone();
         
-        // Crear ColisPriveAddress para matching
-        let colis_addr = ColisPriveAddress {
-            num_voie: colis_package.num_voie_geocode_livraison.clone(),
-            libelle_voie: colis_package.libelle_voie_geocode_livraison.clone(),
-            code_postal: colis_package.code_postal_geocode_livraison.clone(),
-            latitude: colis_package.latitude,
-            longitude: colis_package.longitude,
+        // PASO 1: Verificar calidad de geocodificación
+        let qualite = colis_package.qualite_geocodage_destinataire.as_deref().unwrap_or("");
+        
+        let (libelle_voie, code_postal, num_voie, is_problematic) = if qualite == "Bon" {
+            // ✅ Calidad "Bon" - usar GeocodeDestinataire
+            let libelle = colis_package.libelle_voie_geocode_destinataire.clone()
+                .unwrap_or_default();
+            let cp = colis_package.code_postal_geocode_destinataire.clone()
+                .unwrap_or_default();
+            let num = colis_package.num_voie_geocode_destinataire.clone();
+            
+            info!("✅ Calidad 'Bon' para {}: {} {}", tracking, num.as_deref().unwrap_or(""), libelle);
+            (libelle, cp, num, false)
+        } else {
+            // 🚨 Calidad "Mauvais" - marcar como problemático
+            warn!("🚨 Calidad '{}' para {}, marcando como problemático", qualite, tracking);
+            
+            // Usar OrigineDestinataire como fallback visual
+            let libelle = colis_package.libelle_voie_origine_destinataire.clone()
+                .unwrap_or_default();
+            let cp = colis_package.code_postal_origine_destinataire.clone()
+                .unwrap_or_default();
+            
+            (libelle, cp, None, true)
         };
         
-        // Buscar dirección oficial
-        match self.address_matcher.find_colis_prive_address(&colis_addr).await {
+        // PASO 2: Extraer número si está incluido en libelle
+        let numero_final = if let Some(num) = num_voie {
+            num
+        } else if let Some(captures) = regex::Regex::new(r"^(\d+[A-Z]?)\s+(.+)").unwrap().captures(&libelle_voie) {
+            captures.get(1).map(|m| m.as_str().to_string()).unwrap_or_default()
+        } else {
+            String::new()
+        };
+        
+        // PASO 3: Construir official_label
+        let official_label = if !numero_final.is_empty() {
+            format!("{} {} {}", numero_final, libelle_voie, code_postal)
+        } else {
+            format!("{} {}", libelle_voie, code_postal)
+        }.trim().to_string();
+        
+        // PASO 4: Crear ProcessedPackage
+        let mut processed = ProcessedPackage {
+            id: Uuid::new_v4(),
+            tracking: tracking.clone(),
+            customer_name: colis_package.destinataire_nom,
+            phone_number: colis_package.destinataire_telephone,
+            customer_indication: colis_package.destinataire_indication,
+            official_label: official_label.clone(),
+            latitude: colis_package.latitude,
+            longitude: colis_package.longitude,
+            mailbox_access: false,
+            driver_notes: String::new(),
+            address_id: None,
+            code_statut_article: colis_package.code_statut_article,
+            is_problematic,
+        };
+        
+        // PASO 5: Si NO es problemático, intentar matching con BD
+        if !is_problematic {
+            let colis_addr = ColisPriveAddress {
+                num_voie: Some(numero_final.clone()).filter(|s| !s.is_empty()),
+                libelle_voie: libelle_voie.clone(),
+                code_postal: code_postal.clone(),
+                latitude: colis_package.latitude,
+                longitude: colis_package.longitude,
+            };
+            
+            // Buscar dirección oficial
+            match self.address_matcher.find_colis_prive_address(&colis_addr).await {
             Some(official_address) => {
                 // ✅ MATCH ENCONTRADO - usar datos oficiales
                 processed.official_label = official_address.official_label.clone();
@@ -85,37 +145,38 @@ impl PackageProcessingService {
                 processed.driver_notes = official_address.driver_notes.unwrap_or_default();
                 processed.address_id = Some(official_address.id);
                 
-                info!("✅ Match encontrado para {}: {}", 
-                    colis_package.libelle_voie_geocode_livraison, 
+                info!("✅ Match BD encontrado para {}: {}", 
+                    tracking, 
                     official_address.official_label);
             }
             None => {
-                // ❌ NO MATCH - crear nueva dirección o usar datos de Colis Privé
+                // ❌ NO MATCH - crear nueva dirección en BD
                 match self.address_matcher.create_address_if_not_exists(
-                    colis_package.libelle_voie_geocode_livraison.clone(),
-                    colis_package.code_postal_geocode_livraison.clone(),
-                    "Paris".to_string(), // Asumimos París por ahora
-                    colis_package.latitude,
-                    colis_package.longitude,
+                    libelle_voie.clone(),
+                    code_postal.clone(),
+                    "Paris".to_string(),
+                    processed.latitude,
+                    processed.longitude,
                     company_id,
                 ).await {
                     Ok(new_address) => {
-                        let official_label = new_address.official_label.clone();
-                        processed.official_label = new_address.official_label;
+                        processed.official_label = new_address.official_label.clone();
                         processed.latitude = new_address.latitude;
                         processed.longitude = new_address.longitude;
                         processed.mailbox_access = new_address.has_mailbox_access;
                         processed.driver_notes = new_address.driver_notes.unwrap_or_default();
                         processed.address_id = Some(new_address.id);
                         
-                        info!("🆕 Nueva dirección creada: {}", official_label);
+                        info!("🆕 Nueva dirección creada en BD: {}", new_address.official_label);
                     }
                     Err(e) => {
-                        warn!("⚠️ Error creando dirección, usando datos de Colis Privé: {}", e);
-                        // Los datos ya están en processed desde el From impl
+                        warn!("⚠️ Error creando dirección para {}: {}", tracking, e);
                     }
                 }
             }
+            } // Cerrar el match
+        } else {
+            info!("🚨 Paquete {} marcado como problemático (qualite != 'Bon')", tracking);
         }
         
         Ok(processed)

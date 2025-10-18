@@ -8,6 +8,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 
 use crate::services::geocoding_service::GeocodingService;
+use crate::services::address_cache_service::AddressCacheService;
 use crate::state::AppState;
 
 #[derive(Debug, Deserialize)]

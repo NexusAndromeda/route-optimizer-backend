@@ -66,27 +66,48 @@ async fn get_packages(
     
     let package_processor = PackageProcessingService::new(address_matcher);
     
-    // 3. Convertir PackageData a ColisPrivePackage
+    // 3. Convertir PackageData a ColisPrivePackage usando campos GeocodeDestinataire
     let colis_packages: Vec<crate::models::package::ColisPrivePackage> = packages_response.packages
         .into_iter()
         .filter_map(|pkg| {
             let latitude = pkg.coord_y_destinataire.or(pkg.latitude).unwrap_or(48.8566);
             let longitude = pkg.coord_x_destinataire.or(pkg.longitude).unwrap_or(2.3522);
-            let libelle_voie = pkg.destinataire_adresse1.clone().unwrap_or_default();
-            let code_postal = pkg.destinataire_cp.clone().unwrap_or_default();
             
-            if libelle_voie.is_empty() || code_postal.is_empty() {
-                return None;
-            }
+            // PRIORIDAD: Usar GeocodeDestinataire (más limpio)
+            let num_voie_geocode_dest = pkg.num_voie_geocode_destinataire.clone();
+            let libelle_voie_geocode_dest = pkg.libelle_voie_geocode_destinataire.clone();
+            let code_postal_geocode_dest = pkg.code_postal_geocode_destinataire.clone();
+            let qualite_geocodage_dest = pkg.qualite_geocodage_destinataire.clone();
+            
+            // FALLBACK: OrigineDestinataire
+            let libelle_voie_origine_dest = pkg.libelle_voie_origine_destinataire.clone();
+            let code_postal_origine_dest = pkg.code_postal_origine_destinataire.clone();
+            
+            // LEGACY: GeocodeLivraison (compatibilidad)
+            let libelle_voie_geocode_liv = pkg.destinataire_adresse1.clone();
+            let code_postal_geocode_liv = pkg.destinataire_cp.clone();
             
             Some(crate::models::package::ColisPrivePackage {
                 code_barre_article: pkg.reference_colis.clone(),
                 destinataire_nom: pkg.destinataire_nom.clone(),
                 destinataire_telephone: pkg.phone.or(pkg.phone_fixed),
                 destinataire_indication: pkg.instructions.clone(),
+                
+                // GeocodeDestinataire (prioritario)
+                num_voie_geocode_destinataire: num_voie_geocode_dest,
+                libelle_voie_geocode_destinataire: libelle_voie_geocode_dest,
+                code_postal_geocode_destinataire: code_postal_geocode_dest,
+                qualite_geocodage_destinataire: qualite_geocodage_dest,
+                
+                // OrigineDestinataire (fallback)
+                libelle_voie_origine_destinataire: libelle_voie_origine_dest,
+                code_postal_origine_destinataire: code_postal_origine_dest,
+                
+                // GeocodeLivraison (legacy)
                 num_voie_geocode_livraison: None,
-                libelle_voie_geocode_livraison: libelle_voie,
-                code_postal_geocode_livraison: code_postal,
+                libelle_voie_geocode_livraison: libelle_voie_geocode_liv,
+                code_postal_geocode_livraison: code_postal_geocode_liv,
+                
                 latitude,
                 longitude,
                 code_statut_article: pkg.code_statut_article,

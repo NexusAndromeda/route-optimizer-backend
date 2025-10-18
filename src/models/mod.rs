@@ -8,4 +8,3 @@ pub mod route;
 pub mod colis_prive_company;
 pub mod address;
 pub mod package;
-pub mod auth;

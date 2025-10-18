@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use anyhow::Result;
-use tracing::{info, warn};
-use sqlx::PgPool;
+use tracing::info;
+use sqlx::{PgPool, Row};
 
 /// Servicio para hacer matching de direcciones con la base de datos oficial
 /// Utiliza un cache en memoria para búsquedas rápidas
@@ -46,8 +46,51 @@ impl AddressMatchingService {
     
     /// Obtiene todas las direcciones de la BD
     async fn get_all_addresses(&self) -> Result<Vec<Address>> {
-        // Por ahora retorna vacío, se implementará cuando la tabla exista
-        Ok(vec![])
+        let query = r#"
+            SELECT 
+                id,
+                company_id,
+                official_label,
+                street_name,
+                street_number,
+                postcode,
+                city,
+                ST_Y(coordinates) as latitude,
+                ST_X(coordinates) as longitude,
+                door_code,
+                has_mailbox_access,
+                driver_notes
+            FROM addresses
+            ORDER BY created_at DESC
+        "#;
+
+        let rows = sqlx::query(query)
+            .fetch_all(&*self.pool)
+            .await?;
+
+        let mut addresses = Vec::new();
+        for row in rows {
+            let address = Address {
+                id: row.get("id"),
+                company_id: row.get("company_id"),
+                official_label: row.get("official_label"),
+                street_name: row.get("street_name"),
+                street_number: row.get("street_number"),
+                postcode: row.get("postcode"),
+                city: row.get("city"),
+                latitude: row.get("latitude"),
+                longitude: row.get("longitude"),
+                door_code: row.get("door_code"),
+                has_mailbox_access: row.get("has_mailbox_access"),
+                driver_notes: row.get("driver_notes"),
+                created_at: chrono::Utc::now(),
+                updated_at: chrono::Utc::now(),
+                last_updated_by: None,
+            };
+            addresses.push(address);
+        }
+
+        Ok(addresses)
     }
     
     /// Busca una dirección en el cache
@@ -62,9 +105,14 @@ impl AddressMatchingService {
         self.find_address(&search.street_name, &search.postcode).await
     }
     
-    /// Busca una dirección de Colis Privé en la BD oficial
+    /// Busca una dirección de Colis Privé en la BD oficial usando matching mejorado
     pub async fn find_colis_prive_address(&self, colis_addr: &ColisPriveAddress) -> Option<Address> {
-        self.find_address(&colis_addr.libelle_voie, &colis_addr.code_postal).await
+        let search_key = colis_addr.search_key();
+        let cache = self.address_cache.read().await;
+        
+        info!("🔍 Buscando en caché: '{}'", search_key);
+        
+        cache.get(&search_key).cloned()
     }
     
     /// Crea una nueva dirección si no existe (para geocodificación on-the-go)

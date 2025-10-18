@@ -34,13 +34,49 @@ pub struct AddressSearch {
 }
 
 impl Address {
+    /// Genera una clave de búsqueda normalizada para matching
     pub fn search_key(&self) -> String {
-        format!("{} {}", self.street_name, self.postcode)
+        let number = self.street_number.as_deref().unwrap_or("").trim();
+        let street = normalize_street(&self.street_name);
+        let postcode = self.postcode.trim();
+        
+        format!("{} {} {}", number, street, postcode)
+            .split_whitespace()
+            .collect::<Vec<&str>>()
+            .join(" ")
     }
     
     pub fn from_search(street_name: String, postcode: String) -> AddressSearch {
         AddressSearch { street_name, postcode }
     }
+}
+
+/// Normaliza el nombre de una calle para matching robusto
+fn normalize_street(street: &str) -> String {
+    street
+        .to_uppercase()
+        // Normalizar acentos franceses
+        .replace("É", "E")
+        .replace("È", "E")
+        .replace("Ê", "E")
+        .replace("Ë", "E")
+        .replace("À", "A")
+        .replace("Â", "A")
+        .replace("Ô", "O")
+        .replace("Ù", "U")
+        .replace("Û", "U")
+        .replace("Ç", "C")
+        .replace("Î", "I")
+        .replace("Ï", "I")
+        // Quitar puntuación
+        .replace(",", "")
+        .replace(".", "")
+        .replace(";", "")
+        .replace(":", "")
+        // Limpiar espacios extra
+        .split_whitespace()
+        .collect::<Vec<&str>>()
+        .join(" ")
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -50,6 +86,20 @@ pub struct ColisPriveAddress {
     pub code_postal: String,
     pub latitude: f64,
     pub longitude: f64,
+}
+
+impl ColisPriveAddress {
+    /// Genera una clave de búsqueda normalizada para matching con BD
+    pub fn search_key(&self) -> String {
+        let number = self.num_voie.as_deref().unwrap_or("").trim();
+        let street = normalize_street(&self.libelle_voie);
+        let postcode = self.code_postal.trim();
+        
+        format!("{} {} {}", number, street, postcode)
+            .split_whitespace()
+            .collect::<Vec<&str>>()
+            .join(" ")
+    }
 }
 
 impl From<ColisPriveAddress> for AddressSearch {

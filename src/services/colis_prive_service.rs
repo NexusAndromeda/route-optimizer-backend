@@ -429,6 +429,16 @@ impl ColisPriveService {
                     code_statut_article: package.get("codeStatutArticle").and_then(|v| v.as_str()).map(|s| s.to_string()),
                     numero_ordre: package.get("numeroOrdre").and_then(|v| v.as_i64()).map(|n| n as i32),
                     
+                    // GeocodeDestinataire (prioritarios)
+                    num_voie_geocode_destinataire: package.get("numVoieGeocodeDestinataire").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                    libelle_voie_geocode_destinataire: package.get("LibelleVoieGeocodeDestinataire").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                    code_postal_geocode_destinataire: package.get("codePostalGeocodeDestinataire").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                    qualite_geocodage_destinataire: package.get("qualiteGeocodageDestinataire").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                    
+                    // OrigineDestinataire (fallback)
+                    libelle_voie_origine_destinataire: package.get("LibelleVoieOrigineDestinataire").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                    code_postal_origine_destinataire: package.get("codePostalOrigineDestinataire").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                    
                     // Campos legacy
                     id: Some(package.get("idArticle")?.as_str()?.to_string()),
                     tracking_number: Some(ref_colis.clone()),
@@ -599,6 +609,16 @@ impl ColisPriveService {
                     statut: lieu.code_statut_article.clone(),
                     code_statut_article: lieu.code_statut_article.clone(),
                     numero_ordre: lieu.numero_ordre,
+                    
+                    // GeocodeDestinataire (de optimize response)
+                    num_voie_geocode_destinataire: None,
+                    libelle_voie_geocode_destinataire: None,
+                    code_postal_geocode_destinataire: None,
+                    qualite_geocodage_destinataire: None,
+                    
+                    // OrigineDestinataire (usar para optimize)
+                    libelle_voie_origine_destinataire: lieu.libelle_voie_origine_destinataire.clone(),
+                    code_postal_origine_destinataire: lieu.code_postal_origine_destinataire.clone(),
                     
                     // Campos legacy
                     id: Some(ref_colis.clone()),

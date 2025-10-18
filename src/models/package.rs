@@ -9,11 +9,27 @@ pub struct ColisPrivePackage {
     pub destinataire_nom: String,
     pub destinataire_telephone: Option<String>,
     pub destinataire_indication: Option<String>,
+    
+    // Campos GeocodeDestinataire (prioritarios - más limpios)
+    pub num_voie_geocode_destinataire: Option<String>,
+    pub libelle_voie_geocode_destinataire: Option<String>,
+    pub code_postal_geocode_destinataire: Option<String>,
+    pub qualite_geocodage_destinataire: Option<String>, // "Bon" o "Mauvais"
+    
+    // Campos OrigineDestinataire (fallback)
+    pub libelle_voie_origine_destinataire: Option<String>,
+    pub code_postal_origine_destinataire: Option<String>,
+    
+    // Campos legacy (GeocodeLivraison - mantener por compatibilidad)
     pub num_voie_geocode_livraison: Option<String>,
-    pub libelle_voie_geocode_livraison: String,
-    pub code_postal_geocode_livraison: String,
+    pub libelle_voie_geocode_livraison: Option<String>,
+    pub code_postal_geocode_livraison: Option<String>,
+    
+    // Coordenadas
     pub latitude: f64,
     pub longitude: f64,
+    
+    // Status
     pub code_statut_article: Option<String>,
 }
 
@@ -32,6 +48,7 @@ pub struct ProcessedPackage {
     pub driver_notes: String,
     pub address_id: Option<Uuid>,
     pub code_statut_article: Option<String>,
+    pub is_problematic: bool, // Marcado si qualiteGeocodage != "Bon"
 }
 
 /// Información de paquete para grupos
@@ -78,6 +95,7 @@ pub struct SinglePackage {
     pub driver_notes: String,
     pub address_id: Option<Uuid>,
     pub code_statut_article: Option<String>,
+    pub is_problematic: bool, // Marcado si qualiteGeocodage != "Bon"
 }
 
 /// Respuesta estructurada con paquetes agrupados
@@ -132,23 +150,44 @@ impl GroupedPackages {
 
 impl From<ColisPrivePackage> for ProcessedPackage {
     fn from(colis: ColisPrivePackage) -> Self {
+        // Determinar si es problemático basado en qualiteGeocodage
+        let is_problematic = colis.qualite_geocodage_destinataire.as_deref() != Some("Bon");
+        
+        // Usar GeocodeDestinataire si calidad es "Bon", sino usar Origine
+        let (libelle, cp, num) = if !is_problematic {
+            (
+                colis.libelle_voie_geocode_destinataire.unwrap_or_default(),
+                colis.code_postal_geocode_destinataire.unwrap_or_default(),
+                colis.num_voie_geocode_destinataire,
+            )
+        } else {
+            (
+                colis.libelle_voie_origine_destinataire.unwrap_or_default(),
+                colis.code_postal_origine_destinataire.unwrap_or_default(),
+                None,
+            )
+        };
+        
+        let official_label = if let Some(numero) = num {
+            format!("{} {} {}", numero, libelle, cp)
+        } else {
+            format!("{} {}", libelle, cp)
+        }.trim().to_string();
+        
         Self {
             id: Uuid::new_v4(),
             tracking: colis.code_barre_article,
             customer_name: colis.destinataire_nom,
             phone_number: colis.destinataire_telephone,
             customer_indication: colis.destinataire_indication,
-            official_label: format!("{} {} {}", 
-                colis.num_voie_geocode_livraison.unwrap_or_default(),
-                colis.libelle_voie_geocode_livraison,
-                colis.code_postal_geocode_livraison
-            ),
+            official_label,
             latitude: colis.latitude,
             longitude: colis.longitude,
             mailbox_access: false,
             driver_notes: String::new(),
             address_id: None,
             code_statut_article: colis.code_statut_article,
+            is_problematic,
         }
     }
 }
@@ -168,6 +207,7 @@ impl From<ProcessedPackage> for SinglePackage {
             driver_notes: processed.driver_notes,
             address_id: processed.address_id,
             code_statut_article: processed.code_statut_article,
+            is_problematic: processed.is_problematic,
         }
     }
 }

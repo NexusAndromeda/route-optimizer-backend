@@ -83,9 +83,22 @@ pub async fn get_grouped_packages(
                 destinataire_nom: pkg.destinataire_nom.clone(),
                 destinataire_telephone: pkg.phone.or(pkg.phone_fixed),
                 destinataire_indication: pkg.instructions.clone(),
-                num_voie_geocode_livraison: None, // Extraer si está disponible
-                libelle_voie_geocode_livraison: libelle_voie,
-                code_postal_geocode_livraison: code_postal,
+                
+                // GeocodeDestinataire (no disponibles en mock)
+                num_voie_geocode_destinataire: None,
+                libelle_voie_geocode_destinataire: None,
+                code_postal_geocode_destinataire: None,
+                qualite_geocodage_destinataire: Some("Bon".to_string()), // Asumir buena calidad para mock
+                
+                // OrigineDestinataire (fallback)
+                libelle_voie_origine_destinataire: Some(libelle_voie.clone()),
+                code_postal_origine_destinataire: Some(code_postal.clone()),
+                
+                // GeocodeLivraison (legacy - usar como fallback)
+                num_voie_geocode_livraison: None,
+                libelle_voie_geocode_livraison: Some(libelle_voie),
+                code_postal_geocode_livraison: Some(code_postal),
+                
                 latitude,
                 longitude,
                 code_statut_article: None, // No disponible en formato mock

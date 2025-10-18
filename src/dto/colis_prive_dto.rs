@@ -61,6 +61,22 @@ pub struct PackageData {
     pub code_statut_article: Option<String>,
     pub numero_ordre: Option<i32>,
     
+    // Campos GeocodeDestinataire (prioritarios)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub num_voie_geocode_destinataire: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub libelle_voie_geocode_destinataire: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub code_postal_geocode_destinataire: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub qualite_geocodage_destinataire: Option<String>,
+    
+    // Campos OrigineDestinataire (fallback)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub libelle_voie_origine_destinataire: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub code_postal_origine_destinataire: Option<String>,
+    
     // Campos legacy para compatibilidad
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
