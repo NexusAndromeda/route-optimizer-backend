@@ -51,21 +51,21 @@ pub struct ProcessedPackage {
     pub is_problematic: bool, // Marcado si qualiteGeocodage != "Bon"
 }
 
-/// Información de paquete para grupos
+/// Información completa de paquete para grupos (mismo que SinglePackage pero sin coordenadas propias)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PackageInfo {
     pub id: Uuid,
     pub tracking: String,
+    pub customer_name: String,
+    pub phone_number: Option<String>,
     pub customer_indication: Option<String>,
     pub code_statut_article: Option<String>,
     pub is_problematic: bool,
 }
 
-/// Grupo de paquetes por cliente
+/// Grupo de paquetes por cliente (ahora solo agrupa por cliente)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CustomerGroup {
-    pub customer_name: String,
-    pub phone_number: Option<String>,
     pub packages: Vec<PackageInfo>,
 }
 
@@ -144,13 +144,10 @@ impl GroupedPackages {
         // Ordenar groups por official_label
         self.groups.sort_by(|a, b| a.official_label.cmp(&b.official_label));
         
-        // Ordenar customers dentro de cada group
+        // Ordenar packages dentro de cada customer group
         for group in &mut self.groups {
-            group.customers.sort_by(|a, b| a.customer_name.cmp(&b.customer_name));
-            
-            // Ordenar packages dentro de cada customer
             for customer in &mut group.customers {
-                customer.packages.sort_by(|a, b| a.tracking.cmp(&b.tracking));
+                customer.packages.sort_by(|a, b| a.customer_name.cmp(&b.customer_name));
             }
         }
     }

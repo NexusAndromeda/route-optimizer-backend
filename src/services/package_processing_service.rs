@@ -252,13 +252,12 @@ impl PackageProcessingService {
         // Convertir a CustomerGroup
         let mut customers = Vec::new();
         for (customer_name, customer_packages) in customer_groups {
-            // Guardar phone_number antes de iterar
-            let phone_number = customer_packages[0].phone_number.clone();
-            
             let packages_info: Vec<PackageInfo> = customer_packages.into_iter()
                 .map(|pkg| PackageInfo {
                     id: pkg.id,
                     tracking: pkg.tracking,
+                    customer_name: pkg.customer_name,
+                    phone_number: pkg.phone_number,
                     customer_indication: pkg.customer_indication,
                     code_statut_article: pkg.code_statut_article,
                     is_problematic: pkg.is_problematic,
@@ -266,8 +265,6 @@ impl PackageProcessingService {
                 .collect();
             
             customers.push(CustomerGroup {
-                customer_name,
-                phone_number,
                 packages: packages_info,
             });
         }
